@@ -3,32 +3,19 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"mantis/filewatcher"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
-//mantis filename.go
-//
-//on startup: compute file hash and start program
-//on file save: recompute hash, if hash different restart file
-//on error: redirect error
-//command line utils to restart, terminate etc
+//mantis -- filename.go
 
-//loop
-//file system watcher - fsnotify..build custom if possible - run this as a go routine
-//debounce delay
-//hash compute and compare
-//restart if changes
-
-// func checkForFileChanges(filepath string) bool {
-
-// }
+// go install github.com/path@latest -> this is how it will work with installing; assuming bin is added to path
 
 var INIT_FILE_SIZE int
 var INIT_MOD_TIME int
@@ -46,32 +33,85 @@ func usage() {
 	os.Exit(1)
 }
 
+func checkFileExists(filepath string) error {
+	fmt.Println(filepath)
+	_, err := os.Stat(filepath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("file doesn't exist: %s", err)
+	}
+	return nil
+}
+
+func getModTime(filepath string) (int, error) {
+	fileInfo, err := os.Stat(filepath)
+	if err != nil {
+		return 0, fmt.Errorf("error stat %v", err)
+	}
+	// fmt.Printf("%+v", fileInfo)
+	return int(fileInfo.ModTime().Unix()), nil
+
+}
+
+func getFileSize(filepath string) (int, error) {
+	fileinfo, err := os.Stat(filepath)
+	if err != nil {
+
+		return 0, fmt.Errorf("error stat %v", err)
+
+	}
+	return int(fileinfo.Size()), nil
+}
+
+func killProcess() {
+	if cprocess != nil {
+
+		//check if process is running
+
+		// in case of error in filepath this will fail since it will search for pid even when pid has terminated
+		// add some kind of checks here to avoid this
+		if runtime.GOOS == "windows" {
+
+			p, err := os.FindProcess(cprocess.Pid)
+			if err != nil {
+				fmt.Println("error finding porocess", err)
+				cprocess = nil
+			}
+			if p.Pid != cprocess.Pid {
+				fmt.Println("killed already", p)
+				cprocess = nil
+				return
+			} else {
+
+				killCmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(cprocess.Pid))
+				killCmd.Stdout = os.Stdout
+				killCmd.Stderr = os.Stderr
+
+				if err := killCmd.Run(); err != nil {
+					fmt.Println("taskkill err:", err)
+					return
+				}
+			}
+		} else {
+			err := cprocess.Signal(syscall.Signal(0))
+			if err != nil {
+				fmt.Println("Killed already.", err)
+				cprocess = nil
+				return
+			} else {
+
+				cprocess.Release()
+				cprocess.Kill()
+				cprocess = nil
+			}
+		}
+	}
+}
+
 func executionDriver(filepath string) {
 
 	mlock.Lock()
-	defer mlock.Unlock()
 
-	if cprocess != nil {
-
-		if runtime.GOOS == "windows" {
-			killCmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(cprocess.Pid))
-			killCmd.Stdout = os.Stdout
-			killCmd.Stderr = os.Stderr
-
-			if err := killCmd.Run(); err != nil {
-				fmt.Println("taskkill err:", err)
-				return
-			}
-		} else {
-
-			cprocess.Release()
-			cprocess.Kill()
-			cprocess = nil
-		}
-	}
-
-	// ctx, cancel := context.WithCancel(context.Background())
-	// defer cancel()
+	killProcess()
 
 	executor := exec.Command("go", "run", filepath)
 	executor.Stdout = os.Stdout
@@ -83,28 +123,24 @@ func executionDriver(filepath string) {
 		return
 	}
 	cprocess = executor.Process
-
-	// err = executor.Wait()
-	// if err != nil {
-	// 	fmt.Println("asdasdasd")
-	// }
-
 	fmt.Printf("started new process %v", cprocess.Pid)
+
+	mlock.Unlock()
 
 }
 
 func checkIfModified(filepath string, channel chan Event) {
 	for {
 
-		if fsize, _ := filewatcher.GetFileSize(filepath); fsize != INIT_FILE_SIZE {
+		if fsize, _ := getFileSize(filepath); fsize != INIT_FILE_SIZE {
 			fmt.Println("File has been modified")
 			INIT_FILE_SIZE = fsize
-			fmodt, _ := filewatcher.GetModTime(filepath)
+			fmodt, _ := getModTime(filepath)
 			INIT_MOD_TIME = fmodt
 			channel <- Event{eventcode: 101, eventname: "modified"}
 
 		} else {
-			fmodt, _ := filewatcher.GetModTime(filepath)
+			fmodt, _ := getModTime(filepath)
 			if fmodt != INIT_MOD_TIME {
 				channel <- Event{eventcode: 101, eventname: "modified"}
 				INIT_MOD_TIME = fmodt
@@ -124,6 +160,7 @@ func listenForInput(inputChannel chan int) {
 		text, _ := reader.ReadString('\n')
 		text = strings.TrimSpace(text)
 		if text == "c" {
+			fmt.Println("here")
 			inputChannel <- 0
 		}
 		inputChannel <- 1 //add other cases here
@@ -139,17 +176,17 @@ func main() {
 
 	filepath := os.Args[2]
 	//check if file exists; either here or in filwatcher
-	err := filewatcher.CheckFileExists(filepath)
+	err := checkFileExists(filepath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s", err)
 		os.Exit(1)
 	}
 
-	INIT_FILE_SIZE, err = filewatcher.GetFileSize(filepath)
+	INIT_FILE_SIZE, err = getFileSize(filepath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}
-	INIT_MOD_TIME, err = filewatcher.GetModTime(filepath)
+	INIT_MOD_TIME, err = getModTime(filepath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}
@@ -178,8 +215,11 @@ func main() {
 				}
 				if data == 0 {
 					//terminate the execution of go code as well
+					fmt.Println("c called", strconv.Itoa(cprocess.Pid))
+					killProcess()
 					close(inputchannel)
 					close(filechannel)
+					// terminate all running processes ----- PENDING
 					os.Exit(0)
 				} else if data == 1 {
 					fmt.Println("Some other operation")
@@ -203,20 +243,4 @@ func main() {
 	}()
 
 	select {}
-
-	// for {
-	// 	err := executor.Run()
-	// 	if err!=nil {
-	// 		fmt.Fprintf(os.Stderr, "error executing command: %v\n", err)
-	// 		os.Exit(1)
-	// 	}
-	// }
-
-	// modtime := filewatcher.GetModTime("./filewatcher/sample.txt")
-	// if modtime == -1 {
-	// 	fmt.Printf("Error in modtime")
-	// 	return
-	// }
-
-	// fmt.Println(modtime)
 }
