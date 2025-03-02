@@ -4,12 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -30,7 +27,7 @@ type Event struct {
 
 func usage() {
 	fmt.Printf("\nUsage:\n\nmantis -- <filename or filepath>\n")
-	os.Exit(1)
+	// os.Exit(0)
 }
 
 func checkFileExists(filepath string) error {
@@ -62,60 +59,13 @@ func getFileSize(filepath string) (int, error) {
 	return int(fileinfo.Size()), nil
 }
 
-func killProcess() {
-	if cprocess != nil {
-
-		//check if process is running
-
-		// in case of error in filepath this will fail since it will search for pid even when pid has terminated
-		// add some kind of checks here to avoid this
-		if runtime.GOOS == "windows" {
-
-			p, err := os.FindProcess(cprocess.Pid)
-			if err != nil {
-				fmt.Println("error finding porocess", err)
-				cprocess = nil
-			}
-			if p.Pid != cprocess.Pid {
-				fmt.Println("killed already", p)
-				cprocess = nil
-				return
-			} else {
-
-				killCmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(cprocess.Pid))
-				killCmd.Stdout = os.Stdout
-				killCmd.Stderr = os.Stderr
-
-				if err := killCmd.Run(); err != nil {
-					fmt.Println("taskkill err:", err)
-					return
-				}
-			}
-		} else {
-			err := cprocess.Signal(syscall.Signal(0))
-			if err != nil {
-				fmt.Println("Killed already.", err)
-				cprocess = nil
-				return
-			} else {
-
-				cprocess.Release()
-				cprocess.Kill()
-				cprocess = nil
-			}
-		}
-	}
-}
-
 func executionDriver(filepath string) {
 
 	mlock.Lock()
 
 	killProcess()
 
-	executor := exec.Command("go", "run", filepath)
-	executor.Stdout = os.Stdout
-	executor.Stderr = os.Stderr
+	executor := commandConstruct(filepath)
 
 	err := executor.Start()
 	if err != nil {
@@ -163,19 +113,29 @@ func listenForInput(inputChannel chan int) {
 			fmt.Println("here")
 			inputChannel <- 0
 		}
-		inputChannel <- 1 //add other cases here
+		// inputChannel <- 1 //add other cases here
 	}
 }
 
+// decide on how things are passed into mantis
+// explicit over implicit so the bare minimum would be
+
+// mantis program.go    -> all things default
+
+// other things such as flags, env, args must be passed through and handled.
+// use mantis.json to avoid long cmds
+
 func main() {
+
 	fmt.Println("Starting mantis:")
 
 	if len(os.Args) <= 2 {
 		usage()
+		return
 	}
 
 	filepath := os.Args[2]
-	//check if file exists; either here or in filwatcher
+
 	err := checkFileExists(filepath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s", err)
@@ -191,17 +151,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}
 
-	//create an exec command for executing the file
-
 	//channel creation
 	filechannel := make(chan Event)
 	inputchannel := make(chan int)
-	// execChannel := make(chan int)
 
-	// go changesListener(filechannel)
 	go listenForInput(inputchannel)
 	go checkIfModified(filepath, filechannel)
-	// go executionDriver(filepath, execChannel)
 
 	executionDriver(filepath)
 	go func() {
