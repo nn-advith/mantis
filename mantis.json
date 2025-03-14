@@ -1,0 +1,9 @@
+{
+    "monitor": ".",
+    "extensions": ".go",
+    "main": "go run main.go",
+    "ignore": "",
+    "delay": "0",
+    "env": "",
+    "flags": ""
+}
