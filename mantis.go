@@ -14,60 +14,48 @@ import (
 
 // go install github.com/path@latest -> this is how it will work with installing; assuming bin is added to path
 
-var INIT_FILE_SIZE int
-var INIT_MOD_TIME int
-
-var mlock sync.Mutex
-var cprocess *os.Process
-
 type Event struct {
 	eventcode int
 	eventname string
 }
 
+type MantisConfig struct {
+	Monitor    string `json:"monitor"`
+	Extensions string `json:"extensions"`
+	Main       string `json:"main"`
+	Ignore     string `json:"ignore"`
+	Delay      string `json:"delay"`
+	Env        string `json:"env"`
+	Flags      string `json:"flags"`
+}
+
+var MANTIS_CONFIG MantisConfig
+
+var globalargs map[string][]string
+var CONFIG_FILE string
+var WDIR string
+
+var MONITOR_LIST map[string][]int = map[string][]int{}
+
+var mlock sync.Mutex
+var cprocess *os.Process
+
 func usage() {
-	fmt.Printf("\nUsage:\n\nmantis -- <filename or filepath>\n")
-	// os.Exit(0)
+	fmt.Printf("\nUsage:\n\nmantis -f <files> -a <args> -e <key=value>\n")
 }
 
-func checkFileExists(filepath string) error {
-	fmt.Println(filepath)
-	_, err := os.Stat(filepath)
-	if os.IsNotExist(err) {
-		return fmt.Errorf("file doesn't exist: %s", err)
-	}
-	return nil
-}
-
-func getModTime(filepath string) (int, error) {
-	fileInfo, err := os.Stat(filepath)
-	if err != nil {
-		return 0, fmt.Errorf("error stat %v", err)
-	}
-	// fmt.Printf("%+v", fileInfo)
-	return int(fileInfo.ModTime().Unix()), nil
-
-}
-
-func getFileSize(filepath string) (int, error) {
-	fileinfo, err := os.Stat(filepath)
-	if err != nil {
-
-		return 0, fmt.Errorf("error stat %v", err)
-
-	}
-	return int(fileinfo.Size()), nil
-}
-
-func executionDriver(filepath string) {
+func executionDriver(args map[string][]string) {
 
 	mlock.Lock()
 
 	killProcess()
 
-	executor := commandConstruct(filepath)
+	executor, err := commandConstruct(args)
+	if err != nil {
+		fmt.Println("error constructing command", err)
+	}
 
-	err := executor.Start()
+	err = executor.Start()
 	if err != nil {
 		fmt.Printf("Error starting command: %v\n", err)
 		return
@@ -79,25 +67,56 @@ func executionDriver(filepath string) {
 
 }
 
-func checkIfModified(filepath string, channel chan Event) {
+// fileMap := map[string]FileMeta{
+// 	"path/to/file1": {size, modtime},
+// 	"path/to/file2": {size, modtime},
+// }
+
+//check if dir has modified,
+
+// build a list of files and directories relative to wdir
+// check if the directory / files in wdir have modified
+// if directory has modified, then move in and check if modified file is ignores/matches extension
+
+// this should check for all files, not just one
+func checkIfModified(channel chan Event) {
+
 	for {
 
-		if fsize, _ := getFileSize(filepath); fsize != INIT_FILE_SIZE {
-			fmt.Println("File has been modified")
-			INIT_FILE_SIZE = fsize
-			fmodt, _ := getModTime(filepath)
-			INIT_MOD_TIME = fmodt
+		modified := false
+
+		var wg sync.WaitGroup
+
+		for k, v := range MONITOR_LIST {
+			wg.Add(1)
+
+			go func(k string, v []int) {
+				defer wg.Done()
+
+				fileinfo, err := os.Stat(k)
+				if err != nil {
+					fmt.Println("error stat")
+				}
+				newsize := int(fileinfo.Size())
+				newmodtime := int(fileinfo.ModTime().Unix())
+
+				if newsize != v[0] {
+					modified = true
+					MONITOR_LIST[k] = []int{newsize, newmodtime}
+				} else {
+					if newmodtime > v[1] {
+						modified = true
+						MONITOR_LIST[k] = []int{newsize, newmodtime}
+
+					}
+				}
+
+			}(k, v)
+		}
+
+		wg.Wait()
+		if modified {
 			channel <- Event{eventcode: 101, eventname: "modified"}
-
-		} else {
-			fmodt, _ := getModTime(filepath)
-			if fmodt != INIT_MOD_TIME {
-				channel <- Event{eventcode: 101, eventname: "modified"}
-				INIT_MOD_TIME = fmodt
-
-			} else {
-				channel <- Event{eventcode: 100, eventname: "crickets"}
-			}
 		}
 
 		time.Sleep(1 * time.Second)
@@ -117,48 +136,24 @@ func listenForInput(inputChannel chan int) {
 	}
 }
 
-// decide on how things are passed into mantis
-// explicit over implicit so the bare minimum would be
-
-// mantis program.go    -> all things default
-
-// other things such as flags, env, args must be passed through and handled.
-// use mantis.json to avoid long cmds
-
 func main() {
 
 	fmt.Println("Starting mantis:")
 
-	if len(os.Args) <= 2 {
-		usage()
+	err := preExec()
+	if err != nil {
+		fmt.Println("error during preexec ", err)
 		return
 	}
 
-	filepath := os.Args[2]
-
-	err := checkFileExists(filepath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s", err)
-		os.Exit(1)
-	}
-
-	INIT_FILE_SIZE, err = getFileSize(filepath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-	}
-	INIT_MOD_TIME, err = getModTime(filepath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-	}
-
-	//channel creation
 	filechannel := make(chan Event)
 	inputchannel := make(chan int)
 
 	go listenForInput(inputchannel)
-	go checkIfModified(filepath, filechannel)
+	go checkIfModified(filechannel)
 
-	executionDriver(filepath)
+	executionDriver(globalargs)
+	fmt.Println(MONITOR_LIST)
 	go func() {
 		for {
 			select {
@@ -190,7 +185,7 @@ func main() {
 					//modified, restart
 					fmt.Println("PID", cprocess.Pid)
 
-					executionDriver(filepath)
+					executionDriver(globalargs)
 				}
 
 			}

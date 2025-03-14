@@ -6,8 +6,19 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 )
+
+func getGlobalConfigPath() string {
+	var globalConfigPath string
+	if home, err := os.UserHomeDir(); err != nil {
+		fmt.Println("unable to get user home dir", err)
+	} else {
+		globalConfigPath = filepath.Join(home, ".config", "mantis")
+	}
+	return filepath.Join(globalConfigPath, "mantis.json")
+}
 
 func killProcess() {
 	fmt.Println("Linux kill")
@@ -47,11 +58,21 @@ func killProcess() {
 	return
 }
 
-func commandConstruct(filepath string) *exec.Cmd {
-	executor := exec.Command("go", "run", filepath)
+func commandConstruct(args map[string][]string) (*exec.Cmd, error) {
+
+	var executor *exec.Cmd
+
+	if len(args["-a"]) != 0 {
+		executor = exec.Command("go", append(append([]string{"run"}, args["-f"]...), args["-a"]...)...)
+	} else {
+		executor = exec.Command("go", append([]string{"run"}, args["-f"]...)...)
+	}
+	if len(args["-e"]) > 0 {
+		executor.Env = append(os.Environ(), args["-e"]...)
+	}
 	executor.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // flag to run process and children as a group; avoid orphans on sigkill
 	executor.Stdout = os.Stdout
 	executor.Stderr = os.Stderr
 
-	return executor
+	return executor, nil
 }
