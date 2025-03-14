@@ -10,23 +10,17 @@ import (
 	"time"
 )
 
-//mantis -- filename.go
-
-// go install github.com/path@latest -> this is how it will work with installing; assuming bin is added to path
-
 type Event struct {
 	eventcode int
 	eventname string
 }
 
 type MantisConfig struct {
-	Monitor    string `json:"monitor"`
 	Extensions string `json:"extensions"`
-	Main       string `json:"main"`
 	Ignore     string `json:"ignore"`
 	Delay      string `json:"delay"`
 	Env        string `json:"env"`
-	Flags      string `json:"flags"`
+	Args       string `json:"args"`
 }
 
 var MANTIS_CONFIG MantisConfig
@@ -41,7 +35,7 @@ var mlock sync.Mutex
 var cprocess *os.Process
 
 func usage() {
-	fmt.Printf("\nUsage:\n\nmantis -f <files> -a <args> -e <key=value>\n")
+	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory> -a <args> -e <key=value>\n")
 }
 
 func executionDriver(args map[string][]string) {
@@ -54,6 +48,14 @@ func executionDriver(args map[string][]string) {
 	if err != nil {
 		fmt.Println("error constructing command", err)
 	}
+	execDelay, err := strconv.Atoi(MANTIS_CONFIG.Delay)
+	if err != nil {
+		fmt.Println("error in delay conversion; ensure delay is mentioned in milliseconds ", err)
+	}
+	if execDelay > 0 {
+		fmt.Printf("\nDelaying exec begin by %v milliseconds; sleeping now\n", execDelay)
+	}
+	time.Sleep(time.Duration(execDelay) * time.Millisecond)
 
 	err = executor.Start()
 	if err != nil {
@@ -61,35 +63,19 @@ func executionDriver(args map[string][]string) {
 		return
 	}
 	cprocess = executor.Process
-	fmt.Printf("started new process %v", cprocess.Pid)
+	fmt.Printf("started new process %v\n", cprocess.Pid)
 
 	mlock.Unlock()
 
 }
 
-// fileMap := map[string]FileMeta{
-// 	"path/to/file1": {size, modtime},
-// 	"path/to/file2": {size, modtime},
-// }
-
-//check if dir has modified,
-
-// build a list of files and directories relative to wdir
-// check if the directory / files in wdir have modified
-// if directory has modified, then move in and check if modified file is ignores/matches extension
-
-// this should check for all files, not just one
 func checkIfModified(channel chan Event) {
 
 	for {
-
 		modified := false
-
 		var wg sync.WaitGroup
-
 		for k, v := range MONITOR_LIST {
 			wg.Add(1)
-
 			go func(k string, v []int) {
 				defer wg.Done()
 
@@ -110,7 +96,6 @@ func checkIfModified(channel chan Event) {
 
 					}
 				}
-
 			}(k, v)
 		}
 
@@ -128,17 +113,22 @@ func listenForInput(inputChannel chan int) {
 	for {
 		text, _ := reader.ReadString('\n')
 		text = strings.TrimSpace(text)
-		if text == "c" {
-			fmt.Println("here")
+		switch text {
+		case "q":
+			// quit
 			inputChannel <- 0
+		case "r":
+			// restart
+			inputChannel <- 1
+		default:
+			// default
+			inputChannel <- -1
 		}
-		// inputChannel <- 1 //add other cases here
+
 	}
 }
 
 func main() {
-
-	fmt.Println("Starting mantis:")
 
 	err := preExec()
 	if err != nil {
@@ -153,7 +143,7 @@ func main() {
 	go checkIfModified(filechannel)
 
 	executionDriver(globalargs)
-	fmt.Println(MONITOR_LIST)
+
 	go func() {
 		for {
 			select {
@@ -163,28 +153,27 @@ func main() {
 					fmt.Println("Input channel closed")
 					os.Exit(1)
 				}
-				if data == 0 {
-					//terminate the execution of go code as well
-					fmt.Println("c called", strconv.Itoa(cprocess.Pid))
+
+				switch data {
+				case 0:
 					killProcess()
 					close(inputchannel)
 					close(filechannel)
-					// terminate all running processes ----- PENDING
 					os.Exit(0)
-				} else if data == 1 {
-					fmt.Println("Some other operation")
+				case 1:
+					executionDriver(globalargs)
+				case -1:
+					fmt.Println("unknown input;")
+					// allowed input show here
 				}
 
 			case data, ok := <-filechannel:
-				// fmt.Println(data)
 				if !ok {
 					fmt.Println("File channel is closed; exiting")
 					os.Exit(1)
 				}
-				if data.eventcode == 101 {
-					//modified, restart
-					fmt.Println("PID", cprocess.Pid)
-
+				switch data.eventcode {
+				case 101:
 					executionDriver(globalargs)
 				}
 

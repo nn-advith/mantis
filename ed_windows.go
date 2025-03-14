@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 func getGlobalConfigPath() string {
@@ -59,17 +60,24 @@ func commandConstruct(args map[string][]string) (*exec.Cmd, error) {
 	if len(args["-a"]) != 0 {
 		executor = exec.Command("go", append(append([]string{"run"}, args["-f"]...), args["-a"]...)...)
 	} else {
-		executor = exec.Command("go", append([]string{"run"}, args["-f"]...)...)
+		argsEnv := strings.Split(MANTIS_CONFIG.Args, ",")
+		if len(argsEnv) > 0 {
+			executor = exec.Command("go", append(append([]string{"run"}, args["-f"]...), argsEnv...)...)
+		} else {
+			executor = exec.Command("go", append([]string{"run"}, args["-f"]...)...)
+		}
 	}
 	if len(args["-e"]) > 0 {
 		executor.Env = append(os.Environ(), args["-e"]...)
+	} else {
+		configEnv := strings.Split(MANTIS_CONFIG.Env, ",")
+		if len(configEnv) > 0 {
+			executor.Env = append(os.Environ(), configEnv...)
+		}
 	}
 
-	// executor.Dir = WDIR
 	executor.Stdout = os.Stdout
 	executor.Stderr = os.Stderr
-
-	fmt.Println(executor)
 
 	return executor, nil
 }
