@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -36,19 +37,50 @@ func parseArgs(gargs map[string][]string, args []string) error {
 
 }
 
+func cleanFileArgs() error {
+	if len(globalargs["-f"]) == 1 {
+		f_arg := globalargs["-f"][0]
+		info, err := os.Stat(f_arg)
+		if err != nil {
+			return fmt.Errorf("error during stat %v", err)
+		}
+		if info.IsDir() {
+			// handle this
+			// assume that all.go files in dir needs to be executed
+			// check if dir is in this format [.*]/*.go
+
+			pattern := `^[\.]?[\/]?[A-Za-z0-9_]+\/$`
+			// pattern := `^([[\.][\/]]?[A-Za-z0-9_]+)\/[\*][\.]go$`
+			re := regexp.MustCompile(pattern)
+			match := re.FindStringSubmatch(f_arg)
+
+			if re.MatchString(f_arg) {
+				//dir only, modify
+				f_arg = match[0] + "*.go"
+				files, err := filepath.Glob(f_arg)
+				if err != nil || len(files) == 0 {
+					return fmt.Errorf("no go files; halting execution")
+				}
+
+				globalargs["-f"] = files
+			}
+
+		}
+	}
+	return nil
+}
+
 func checkForGlobalConfig() error {
 	gcfilepath := getGlobalConfigPath()
 	if _, err := os.Stat(gcfilepath); os.IsNotExist(err) {
 		_ = os.MkdirAll(filepath.Dir(gcfilepath), 0755)
 
 		defaultConfig := map[string]string{
-			"monitor":    ".",
 			"extensions": ".go",
-			"main":       "go run main.go",
 			"ignore":     "",
 			"delay":      "0",
 			"env":        "",
-			"flags":      "",
+			"args":       "",
 		}
 		data, err := json.MarshalIndent(defaultConfig, "", "  ")
 		if err != nil {
@@ -69,7 +101,6 @@ func checkForLocalConfig(ftags []string) (bool, error) {
 	// assume ftags has only one directory; it can be $/dir/ or $/dir/a.go
 	// so check if it is dir, if dir move to checking for config
 	// else find parent dir and then check for config
-	fmt.Println(ftags[0])
 	if s, err := os.Stat(ftags[0]); err != nil {
 		return false, fmt.Errorf("error during stat %v", err)
 	} else {
@@ -115,7 +146,7 @@ func getFilesToMonitor() {
 		} else {
 			t := strings.Split(d.Name(), ".")
 			ext := "." + t[len(t)-1]
-			t_path := strings.Replace(filepath.ToSlash(path), WDIR, "", -1)
+			t_path := strings.Replace(filepath.ToSlash(path), filepath.ToSlash(WDIR)+"/", "", -1)
 
 			if slices.Contains(extlist, ext) && !slices.Contains(ignorelist, t_path) {
 
@@ -144,6 +175,8 @@ func decodeMantisConfig() error {
 		return fmt.Errorf("error while decoding mantis.json")
 	}
 
+	//flags is not handled as of now. ignored
+
 	return nil
 }
 
@@ -160,8 +193,10 @@ func preExec() error {
 		usage()
 		os.Exit(1)
 	}
-
-	fmt.Println(globalargs)
+	err = cleanFileArgs()
+	if err != nil {
+		return err
+	}
 
 	err = checkForGlobalConfig()
 	if err != nil {
