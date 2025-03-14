@@ -1,0 +1,73 @@
+package main
+
+import (
+	"os"
+	"os/exec"
+)
+
+func main() {
+	// 1. Run a single file
+	cmd1 := exec.Command("go", "run", "main.go")
+
+	// 2. Run multiple files
+	cmd2 := exec.Command("go", "run", "a.go", "b.go")
+
+	// 3. Run all files in the current directory
+	cmd3 := exec.Command("go", "run", ".")
+
+	// 4. Run a module
+	cmd4 := exec.Command("go", "run", "example.com/mymodule")
+
+	// 5. Run with arguments
+	cmd5 := exec.Command("go", "run", "main.go", "--", "arg1", "arg2")
+
+	// 6. Run with race detection
+	cmd6 := exec.Command("go", "run", "-race", "main.go")
+
+	// 7. Run with compiler flags
+	cmd7 := exec.Command("go", "run", "-gcflags=-m", "main.go")
+
+	// 8. Run with linker flags
+	cmd8 := exec.Command("go", "run", "-ldflags=-s -w", "main.go")
+
+	// 9. Run with module mode
+	cmd9 := exec.Command("go", "run", "-mod=readonly", "main.go")
+
+	// 10. Run with environment variables
+	cmd10 := exec.Command("go", "run", "main.go")
+	cmd10.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
+
+	// 11. Run from another directory
+	cmd11 := exec.Command("go", "run", "../some_other_dir/main.go")
+
+	// 12. Run from an absolute path
+	cmd12 := exec.Command("go", "run", "/absolute/path/to/main.go")
+}
+
+
+
+executionDriver
+
+-> call constructCommand()
+	- check if arg1 is file.go
+	- if yes, use everything default and start
+	- check for local mantis.json
+	- if present; take env, command, etc from there
+	- if not present check for global and use that.
+	ATLEAST file name is mandatory
+	- constructCommand must take care of different variations of go run ^
+
+-> filewatcher:
+	- check of all files in included directort with given extensions
+	- default listen for only .go changes
+	- ignore exception directories
+
+-> check if []args can be handled alongside exploicit args
+
+mantis main.go -a val1 val2 -e GOOS=linux 
+
+this is enoughfor now
+race mode, linker flags and  build flags cann be implemented later on.
+
+
+ 
