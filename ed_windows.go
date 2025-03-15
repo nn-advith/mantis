@@ -13,12 +13,11 @@ import (
 )
 
 func getGlobalConfigPath() string {
-
 	globalConfigPath := filepath.Join(os.Getenv("APPDATA"), "mantis")
 	return filepath.Join(globalConfigPath, "mantis.json")
 }
 
-func killProcess() {
+func killProcess() error {
 	if cprocess != nil {
 
 		// os.FindProcess is stupid. it just finds the process but not the running status.
@@ -29,28 +28,25 @@ func killProcess() {
 		chckCmd.Stdout = &out
 
 		if err := chckCmd.Run(); err != nil {
-			fmt.Println("error running check")
-			return
+			return fmt.Errorf("error while checking for existing processes")
 		}
 
 		output := out.String()
 		if output == "" || bytes.Contains(out.Bytes(), []byte("No tasks are running")) {
 			fmt.Println("process has exited already")
-			return
+
 		} else {
 			killCmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(cprocess.Pid))
 			killCmd.Stdout = os.Stdout
 			killCmd.Stderr = os.Stderr
 
 			if err := killCmd.Run(); err != nil { //Run() is blocking so will wait for killcmd to complete
-				fmt.Println("taskkill err:", err)
-				return
+				return fmt.Errorf("error while killing existing process")
 			}
 		}
 		cprocess = nil
-
 	}
-
+	return nil
 }
 
 func commandConstruct(args map[string][]string) (*exec.Cmd, error) {
