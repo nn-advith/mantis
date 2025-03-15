@@ -24,33 +24,30 @@ type MantisConfig struct {
 }
 
 var MANTIS_CONFIG MantisConfig
-
-var globalargs map[string][]string
 var CONFIG_FILE string
+var MONITOR_LIST map[string][]int = map[string][]int{}
 var WDIR string
 
-var MONITOR_LIST map[string][]int = map[string][]int{}
+var globalargs map[string][]string
 
 var mlock sync.Mutex
 var cprocess *os.Process
 
-func usage() {
-	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory> -a <args> -e <key=value>\n")
-}
-
-func executionDriver(args map[string][]string) {
+func executionDriver(args map[string][]string) error {
 
 	mlock.Lock()
+	err := killProcess()
+	if err != nil {
 
-	killProcess()
+	}
 
 	executor, err := commandConstruct(args)
 	if err != nil {
-		fmt.Println("error constructing command", err)
+		return fmt.Errorf("error constructing command: %V", err)
 	}
 	execDelay, err := strconv.Atoi(MANTIS_CONFIG.Delay)
 	if err != nil {
-		fmt.Println("error in delay conversion; ensure delay is mentioned in milliseconds ", err)
+		return fmt.Errorf("error in delay conversion; ensure delay is mentioned in milliseconds: %v", err)
 	}
 	if execDelay > 0 {
 		fmt.Printf("\nDelaying exec begin by %v milliseconds; sleeping now\n", execDelay)
@@ -59,14 +56,14 @@ func executionDriver(args map[string][]string) {
 
 	err = executor.Start()
 	if err != nil {
-		fmt.Printf("Error starting command: %v\n", err)
-		return
+		return fmt.Errorf("error starting command: %v", err)
+
 	}
 	cprocess = executor.Process
 	fmt.Printf("started new process %v\n", cprocess.Pid)
 
 	mlock.Unlock()
-
+	return nil
 }
 
 func checkIfModified(channel chan Event) {
@@ -81,7 +78,7 @@ func checkIfModified(channel chan Event) {
 
 				fileinfo, err := os.Stat(k)
 				if err != nil {
-					fmt.Println("error stat")
+					fmt.Println("error while checking for moditifications:", err)
 				}
 				newsize := int(fileinfo.Size())
 				newmodtime := int(fileinfo.ModTime().Unix())
@@ -93,7 +90,6 @@ func checkIfModified(channel chan Event) {
 					if newmodtime > v[1] {
 						modified = true
 						MONITOR_LIST[k] = []int{newsize, newmodtime}
-
 					}
 				}
 			}(k, v)
@@ -142,7 +138,10 @@ func main() {
 	go listenForInput(inputchannel)
 	go checkIfModified(filechannel)
 
-	executionDriver(globalargs)
+	err = executionDriver(globalargs)
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	go func() {
 		for {
@@ -164,7 +163,7 @@ func main() {
 					executionDriver(globalargs)
 				case -1:
 					fmt.Println("unknown input;")
-					// allowed input show here
+					runtimeCommandsLegend()
 				}
 
 			case data, ok := <-filechannel:

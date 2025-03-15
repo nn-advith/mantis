@@ -21,15 +21,15 @@ func getGlobalConfigPath() string {
 	return filepath.Join(globalConfigPath, "mantis.json")
 }
 
-func killProcess() {
+func killProcess() error {
 
 	if cprocess != nil {
 
 		pgid, err := syscall.Getpgid(cprocess.Pid)
 		if err != nil {
-			fmt.Println("unable to find pgid: ", err)
 			cprocess = nil
-			return
+			return fmt.Errorf("unable to find pgid: %v", err)
+
 		}
 		// killing pgid
 
@@ -37,26 +37,25 @@ func killProcess() {
 
 		err = syscall.Kill(-pgid, syscall.SIGKILL)
 		if err != nil {
-			fmt.Println("error killing process group:", err)
-			return
+			return fmt.Errorf("error killing process group: %v", err)
+
 		}
 
 		err = cprocess.Kill() //fallthorugh kill
 		if err != nil {
-			fmt.Println("error killing process:", err)
-			return
+			return fmt.Errorf("error killing process group: %v", err)
 		}
 		_, err = cprocess.Wait()
 		if err != nil {
-			fmt.Println("error waiting for process:", err)
-			return
+			return fmt.Errorf("error waiting for process: %v", err)
+
 		} else {
 			fmt.Println("process has terminated")
 		}
 
 		cprocess = nil
 	}
-	return
+	return nil
 }
 
 func commandConstruct(args map[string][]string) (*exec.Cmd, error) {

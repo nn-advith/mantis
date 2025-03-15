@@ -15,15 +15,21 @@ import (
 
 // add logger here ig
 
+func usage() {
+	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory> -a <args> -e <key=value>\n")
+}
+
+func runtimeCommandsLegend() {
+	fmt.Printf("\nAllowed command chars:\nq\t-\tQuit mantis\nr\t-\tRestart processes\n\n")
+}
+
 func parseArgs(gargs map[string][]string, args []string) error {
-	// find the tags locations
 	var indexes = map[string]int{"-a": -1, "-e": -1, "-f": -1}
 	tmpargs := args[1:]
 	currentkey := ""
 	for i := range tmpargs {
-
 		if _, exists := indexes[tmpargs[i]]; tmpargs[i][0] == '-' && !exists {
-			return fmt.Errorf("unknown key; refer usage")
+			return fmt.Errorf("unknown key")
 		}
 		// add error check if flag is empty
 		if _, exists := indexes[tmpargs[i]]; exists {
@@ -45,26 +51,18 @@ func cleanFileArgs() error {
 			return fmt.Errorf("error during stat %v", err)
 		}
 		if info.IsDir() {
-			// handle this
-			// assume that all.go files in dir needs to be executed
-			// check if dir is in this format [.*]/*.go
-
 			pattern := `^[\.]?[\/]?[A-Za-z0-9_]+\/$`
-			// pattern := `^([[\.][\/]]?[A-Za-z0-9_]+)\/[\*][\.]go$`
 			re := regexp.MustCompile(pattern)
 			match := re.FindStringSubmatch(f_arg)
 
 			if re.MatchString(f_arg) {
-				//dir only, modify
 				f_arg = match[0] + "*.go"
 				files, err := filepath.Glob(f_arg)
 				if err != nil || len(files) == 0 {
-					return fmt.Errorf("no go files; halting execution")
+					return fmt.Errorf("no go files found; halting execution")
 				}
-
 				globalargs["-f"] = files
 			}
-
 		}
 	}
 	return nil
@@ -73,7 +71,10 @@ func cleanFileArgs() error {
 func checkForGlobalConfig() error {
 	gcfilepath := getGlobalConfigPath()
 	if _, err := os.Stat(gcfilepath); os.IsNotExist(err) {
-		_ = os.MkdirAll(filepath.Dir(gcfilepath), 0755)
+		err = os.MkdirAll(filepath.Dir(gcfilepath), 0755)
+		if err != nil {
+			return fmt.Errorf("error creating global config directory")
+		}
 
 		defaultConfig := map[string]string{
 			"extensions": ".go",
@@ -84,8 +85,7 @@ func checkForGlobalConfig() error {
 		}
 		data, err := json.MarshalIndent(defaultConfig, "", "  ")
 		if err != nil {
-			return fmt.Errorf("error writing default global config : %v", err)
-
+			return fmt.Errorf("error while marshalling global config")
 		}
 		err = os.WriteFile(gcfilepath, data, 0644)
 		if err != nil {
@@ -93,34 +93,34 @@ func checkForGlobalConfig() error {
 		}
 		return nil
 	} else if err != nil {
+		return fmt.Errorf("error during stat; global config")
 	}
 	return nil
 }
 
 func checkForLocalConfig(ftags []string) (bool, error) {
-	// assume ftags has only one directory; it can be $/dir/ or $/dir/a.go
-	// so check if it is dir, if dir move to checking for config
-	// else find parent dir and then check for config
 	if s, err := os.Stat(ftags[0]); err != nil {
-		return false, fmt.Errorf("error during stat %v", err)
+		return false, fmt.Errorf("error during stat")
 	} else {
 		if s.IsDir() {
-			WDIR, _ = filepath.Abs(ftags[0])
+			WDIR, err = filepath.Abs(ftags[0])
+			if err != nil {
+				return false, fmt.Errorf("error while checking for local config")
+			}
 		} else {
-			WDIR, _ = filepath.Abs(filepath.Dir(ftags[0]))
+			WDIR, err = filepath.Abs(filepath.Dir(ftags[0]))
+			if err != nil {
+				return false, fmt.Errorf("error while checking for local config")
+			}
 		}
 	}
 	localconfig := filepath.Join(WDIR, "mantis.json")
 	if present, err := os.Stat(localconfig); err == nil {
 		return true && !present.IsDir(), nil
 	}
-	fmt.Println(WDIR)
 	return false, nil
 
 }
-
-// array of filepaths to monitor. additionally
-// map file size and mod time for each filepath
 
 func getFilesToMonitor() {
 	extensions := MANTIS_CONFIG.Extensions
@@ -131,7 +131,7 @@ func getFilesToMonitor() {
 
 	filepath.WalkDir(WDIR, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			fmt.Println("Error:", err)
+			fmt.Println("error while scanning files to monitor", err)
 			return nil
 		}
 
@@ -151,14 +151,11 @@ func getFilesToMonitor() {
 			if slices.Contains(extlist, ext) && !slices.Contains(ignorelist, t_path) {
 
 				fileinfo, _ := os.Stat(path)
-
 				MONITOR_LIST[path] = []int{int(fileinfo.Size()), int(fileinfo.ModTime().Unix())}
 			} else {
 				//skip
 			}
-
 		}
-
 		return nil
 	})
 
