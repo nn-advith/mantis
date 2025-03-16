@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,7 +34,7 @@ func killProcess() error {
 
 		output := out.String()
 		if output == "" || bytes.Contains(out.Bytes(), []byte("No tasks are running")) {
-			fmt.Println("process has exited already")
+			log.Printf("process has terminated")
 
 		} else {
 			killCmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(cprocess.Pid))
@@ -72,8 +73,10 @@ func commandConstruct(args map[string][]string) (*exec.Cmd, error) {
 		}
 	}
 
-	executor.Stdout = os.Stdout
-	executor.Stderr = os.Stderr
+	// moving this to executionDriver for better(informative maybe) logging
+
+	// executor.Stdout = os.Stdout
+	// executor.Stderr = os.Stderr
 
 	return executor, nil
 }

@@ -22,8 +22,10 @@ func initLogger() {
 }
 
 func logProcessInfo(logval string) {
-	log.SetPrefix(strconv.Itoa(cprocess.Pid) + ": ")
+	log.SetPrefix(strconv.Itoa(cprocess.Pid) + "> ")
+	log.SetFlags(0)
 	log.Println(logval)
+	log.SetFlags(1)
 	log.SetPrefix("mantis: ")
 }
 
@@ -143,7 +145,7 @@ func getFilesToMonitor() {
 
 	filepath.WalkDir(WDIR, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			fmt.Println("error while scanning files to monitor", err)
+			log.Fatal("error while scanning files to monitor", err)
 			return nil
 		}
 
@@ -198,7 +200,7 @@ func preExec() error {
 	}
 	err := parseArgs(globalargs, os.Args)
 	if err != nil {
-		fmt.Println("parse error", err)
+		log.Printf("parse error: %v", err)
 		usage()
 		os.Exit(1)
 	}
@@ -217,8 +219,10 @@ func preExec() error {
 		return err
 	}
 	if localconfigpresent {
+		log.Printf("found local mantis config")
 		CONFIG_FILE = filepath.Join(WDIR, "mantis.json")
 	} else {
+		log.Printf("using global mantis config")
 		CONFIG_FILE = getGlobalConfigPath()
 	}
 

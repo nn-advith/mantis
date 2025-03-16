@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,7 +51,7 @@ func killProcess() error {
 			return fmt.Errorf("error waiting for process: %v", err)
 
 		} else {
-			fmt.Println("process has terminated")
+			log.Printf("process has terminated")
 		}
 
 		cprocess = nil
@@ -81,8 +82,11 @@ func commandConstruct(args map[string][]string) (*exec.Cmd, error) {
 		}
 	}
 	executor.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // flag to run process and children as a group; avoid orphans on sigkill
-	executor.Stdout = os.Stdout
-	executor.Stderr = os.Stderr
+
+	// moving this to executionDriver for better(informative maybe) logging
+
+	// executor.Stdout = os.Stdout
+	// executor.Stderr = os.Stderr
 
 	return executor, nil
 }
