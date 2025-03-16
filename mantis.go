@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -60,7 +61,7 @@ func executionDriver(args map[string][]string) error {
 
 	}
 	cprocess = executor.Process
-	fmt.Printf("started new process %v\n", cprocess.Pid)
+	log.Println(fmt.Sprintf("started new process %v\n", cprocess.Pid))
 
 	mlock.Unlock()
 	return nil
@@ -125,6 +126,8 @@ func listenForInput(inputChannel chan int) {
 }
 
 func main() {
+
+	initLogger()
 
 	err := preExec()
 	if err != nil {

@@ -6,14 +6,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
 // add logger here ig
+
+func initLogger() {
+	log.SetPrefix("mantis: ")
+}
+
+func logProcessInfo(logval string) {
+	log.SetPrefix(strconv.Itoa(cprocess.Pid) + ": ")
+	log.Println(logval)
+	log.SetPrefix("mantis: ")
+}
 
 func usage() {
 	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory> -a <args> -e <key=value>\n")
