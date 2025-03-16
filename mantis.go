@@ -46,22 +46,46 @@ func executionDriver(args map[string][]string) error {
 	if err != nil {
 		return fmt.Errorf("error constructing command: %V", err)
 	}
+
+	// capture output from pipe and use logProcessInfo within a goroutine to avoid  waiting
+	stdout, err := executor.StdoutPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	stderr, err := executor.StderrPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			logProcessInfo(scanner.Text())
+		}
+	}()
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			logProcessInfo(scanner.Text())
+		}
+	}()
+
 	execDelay, err := strconv.Atoi(MANTIS_CONFIG.Delay)
 	if err != nil {
 		return fmt.Errorf("error in delay conversion; ensure delay is mentioned in milliseconds: %v", err)
 	}
 	if execDelay > 0 {
-		fmt.Printf("\nDelaying exec begin by %v milliseconds; sleeping now\n", execDelay)
+		log.Printf("Delaying exec begin by %v milliseconds; sleeping now\n", execDelay)
 	}
 	time.Sleep(time.Duration(execDelay) * time.Millisecond)
 
+	log.Printf("Starting execution: %v", executor)
 	err = executor.Start()
 	if err != nil {
 		return fmt.Errorf("error starting command: %v", err)
 
 	}
 	cprocess = executor.Process
-	log.Println(fmt.Sprintf("started new process %v\n", cprocess.Pid))
+	log.Printf("%v", fmt.Sprintf("started new process %v\n", cprocess.Pid))
 
 	mlock.Unlock()
 	return nil
@@ -79,7 +103,7 @@ func checkIfModified(channel chan Event) {
 
 				fileinfo, err := os.Stat(k)
 				if err != nil {
-					fmt.Println("error while checking for moditifications:", err)
+					log.Printf("error while checking for moditifications: %v", err)
 				}
 				newsize := int(fileinfo.Size())
 				newmodtime := int(fileinfo.ModTime().Unix())
@@ -131,7 +155,7 @@ func main() {
 
 	err := preExec()
 	if err != nil {
-		fmt.Println("error during preexec ", err)
+		log.Fatal("error during preexec:", err)
 		return
 	}
 
@@ -143,7 +167,7 @@ func main() {
 
 	err = executionDriver(globalargs)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
 	go func() {
@@ -152,7 +176,7 @@ func main() {
 			case data, ok := <-inputchannel:
 				// fmt.Println(data)
 				if !ok {
-					fmt.Println("Input channel closed")
+					log.Printf("Input channel closed")
 					os.Exit(1)
 				}
 
@@ -163,15 +187,17 @@ func main() {
 					close(filechannel)
 					os.Exit(0)
 				case 1:
+					log.Printf("Restarting ... ")
 					executionDriver(globalargs)
+					log.Printf("Restarted")
 				case -1:
-					fmt.Println("unknown input;")
+					log.Printf("unknown input;")
 					runtimeCommandsLegend()
 				}
 
 			case data, ok := <-filechannel:
 				if !ok {
-					fmt.Println("File channel is closed; exiting")
+					log.Printf("File channel is closed; exiting")
 					os.Exit(1)
 				}
 				switch data.eventcode {
