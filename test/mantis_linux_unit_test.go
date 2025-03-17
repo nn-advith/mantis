@@ -1,4 +1,4 @@
-//go:build linux
+//go:build unit && linux
 
 package main_test
 
