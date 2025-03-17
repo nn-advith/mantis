@@ -46,7 +46,7 @@ func main() {
 
 
 
-executionDriver
+ExecutionDriver
 
 -> call constructCommand()
 	- check if arg1 is file.go
