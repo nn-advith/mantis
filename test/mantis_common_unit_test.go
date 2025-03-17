@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	mantis "github.com/nn-advith/mantis"
+	"github.com/nn-advith/mantis/mantis"
 )
 
 var cprocess = &os.Process{Pid: 1234}

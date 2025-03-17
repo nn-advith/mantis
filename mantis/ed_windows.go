@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package mantis
 
 import (
 	"bytes"
@@ -50,22 +50,22 @@ func KillProcess() error {
 	return nil
 }
 
-func CommandConstruct(args map[string][]string) (*exec.Cmd, error) {
+func CommandConstruct() (*exec.Cmd, error) {
 
 	var executor *exec.Cmd
 
-	if len(args["-a"]) != 0 {
-		executor = exec.Command("go", append(append([]string{"run"}, args["-f"]...), args["-a"]...)...)
+	if len(globalargs["-a"]) != 0 {
+		executor = exec.Command("go", append(append([]string{"run"}, globalargs["-f"]...), globalargs["-a"]...)...)
 	} else {
 		argsEnv := strings.Split(mantis_config.Args, ",")
 		if len(argsEnv) > 0 {
-			executor = exec.Command("go", append(append([]string{"run"}, args["-f"]...), argsEnv...)...)
+			executor = exec.Command("go", append(append([]string{"run"}, globalargs["-f"]...), argsEnv...)...)
 		} else {
-			executor = exec.Command("go", append([]string{"run"}, args["-f"]...)...)
+			executor = exec.Command("go", append([]string{"run"}, globalargs["-f"]...)...)
 		}
 	}
-	if len(args["-e"]) > 0 {
-		executor.Env = append(os.Environ(), args["-e"]...)
+	if len(globalargs["-e"]) > 0 {
+		executor.Env = append(os.Environ(), globalargs["-e"]...)
 	} else {
 		configEnv := strings.Split(mantis_config.Env, ",")
 		if len(configEnv) > 0 {

@@ -1,4 +1,4 @@
-package main
+package mantis
 
 import (
 	"bufio"
@@ -12,8 +12,8 @@ import (
 )
 
 type Event struct {
-	eventcode int
-	eventname string
+	EventCode int
+	EventName string
 }
 
 type MantisConfig struct {
@@ -34,7 +34,27 @@ var globalargs map[string][]string
 var mlock sync.Mutex
 var cprocess *os.Process
 
-func ExecutionDriver(args map[string][]string) error {
+func GetGlobalArgs() map[string][]string {
+	return globalargs
+}
+
+func GetMantisConfig() MantisConfig {
+	return mantis_config
+}
+
+func GetConfigFile() string {
+	return config_file
+}
+
+func GetMonitorList() map[string][]int {
+	return monitor_list
+}
+
+func GetWDirectory() string {
+	return wdirectory
+}
+
+func ExecutionDriver() error {
 
 	mlock.Lock()
 	err := KillProcess()
@@ -42,7 +62,7 @@ func ExecutionDriver(args map[string][]string) error {
 
 	}
 
-	executor, err := CommandConstruct(args)
+	executor, err := CommandConstruct()
 	if err != nil {
 		return fmt.Errorf("error constructing command: %V", err)
 	}
@@ -122,7 +142,7 @@ func CheckIfModified(channel chan Event) {
 
 		wg.Wait()
 		if modified {
-			channel <- Event{eventcode: 101, eventname: "modified"}
+			channel <- Event{EventCode: 101, EventName: "modified"}
 		}
 
 		time.Sleep(1 * time.Second)
@@ -147,67 +167,4 @@ func ListenForInput(inputChannel chan int) {
 		}
 
 	}
-}
-
-func main() {
-
-	initLogger()
-
-	err := PreExec()
-	if err != nil {
-		log.Fatal("error during preexec:", err)
-		return
-	}
-
-	filechannel := make(chan Event)
-	inputchannel := make(chan int)
-
-	go ListenForInput(inputchannel)
-	go CheckIfModified(filechannel)
-
-	err = ExecutionDriver(globalargs)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	go func() {
-		for {
-			select {
-			case data, ok := <-inputchannel:
-				// fmt.Println(data)
-				if !ok {
-					log.Printf("Input channel closed")
-					os.Exit(1)
-				}
-
-				switch data {
-				case 0:
-					KillProcess()
-					close(inputchannel)
-					close(filechannel)
-					os.Exit(0)
-				case 1:
-					log.Printf("Restarting ... ")
-					ExecutionDriver(globalargs)
-					log.Printf("Restarted")
-				case -1:
-					log.Printf("unknown input;")
-					runtimeCommandsLegend()
-				}
-
-			case data, ok := <-filechannel:
-				if !ok {
-					log.Printf("File channel is closed; exiting")
-					os.Exit(1)
-				}
-				switch data.eventcode {
-				case 101:
-					ExecutionDriver(globalargs)
-				}
-
-			}
-		}
-	}()
-
-	select {}
 }
