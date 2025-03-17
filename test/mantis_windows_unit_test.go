@@ -1,4 +1,4 @@
-//go:build windows
+//go:build unit && windows
 
 // Tests for mantis.
 
