@@ -21,8 +21,8 @@ func initLogger() {
 	log.SetPrefix("mantis: ")
 }
 
-func logProcessInfo(logval string) {
-	log.SetPrefix(strconv.Itoa(cprocess.Pid) + "> ")
+func LogProcessInfo(proc *os.Process, logval string) {
+	log.SetPrefix(strconv.Itoa(proc.Pid) + "> ")
 	log.SetFlags(0)
 	log.Println(logval)
 	log.SetFlags(1)
@@ -30,20 +30,24 @@ func logProcessInfo(logval string) {
 }
 
 func usage() {
-	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory> -a <args> -e <key=value>\n")
+	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory> -a <args> -e <key=value>\nmantis -v for version\nmantis -h for help")
 }
 
 func runtimeCommandsLegend() {
 	fmt.Printf("\nAllowed command chars:\nq\t-\tQuit mantis\nr\t-\tRestart processes\n\n")
 }
 
-func parseArgs(gargs map[string][]string, args []string) error {
+func returnVersion() {
+	fmt.Println("mantis v1.0.0")
+}
+
+func ParseArgs(gargs map[string][]string, args []string) error {
 	var indexes = map[string]int{"-a": -1, "-e": -1, "-f": -1}
 	tmpargs := args[1:]
 	currentkey := ""
 	for i := range tmpargs {
 		if _, exists := indexes[tmpargs[i]]; tmpargs[i][0] == '-' && !exists {
-			return fmt.Errorf("unknown key")
+			return fmt.Errorf("unknown key for normal usage")
 		}
 		// add error check if flag is empty
 		if _, exists := indexes[tmpargs[i]]; exists {
@@ -57,7 +61,7 @@ func parseArgs(gargs map[string][]string, args []string) error {
 
 }
 
-func cleanFileArgs() error {
+func CleanFileArgs() error {
 	if len(globalargs["-f"]) == 1 {
 		f_arg := globalargs["-f"][0]
 		info, err := os.Stat(f_arg)
@@ -82,8 +86,8 @@ func cleanFileArgs() error {
 	return nil
 }
 
-func checkForGlobalConfig() error {
-	gcfilepath := getGlobalConfigPath()
+func CheckForGlobalConfig() error {
+	gcfilepath := GetGlobalConfigPath()
 	if _, err := os.Stat(gcfilepath); os.IsNotExist(err) {
 		err = os.MkdirAll(filepath.Dir(gcfilepath), 0755)
 		if err != nil {
@@ -112,23 +116,23 @@ func checkForGlobalConfig() error {
 	return nil
 }
 
-func checkForLocalConfig(ftags []string) (bool, error) {
+func CheckForLocalConfig(ftags []string) (bool, error) {
 	if s, err := os.Stat(ftags[0]); err != nil {
 		return false, fmt.Errorf("error during stat")
 	} else {
 		if s.IsDir() {
-			WDIR, err = filepath.Abs(ftags[0])
+			wdirectory, err = filepath.Abs(ftags[0])
 			if err != nil {
 				return false, fmt.Errorf("error while checking for local config")
 			}
 		} else {
-			WDIR, err = filepath.Abs(filepath.Dir(ftags[0]))
+			wdirectory, err = filepath.Abs(filepath.Dir(ftags[0]))
 			if err != nil {
 				return false, fmt.Errorf("error while checking for local config")
 			}
 		}
 	}
-	localconfig := filepath.Join(WDIR, "mantis.json")
+	localconfig := filepath.Join(wdirectory, "mantis.json")
 	if present, err := os.Stat(localconfig); err == nil {
 		return true && !present.IsDir(), nil
 	}
@@ -136,14 +140,14 @@ func checkForLocalConfig(ftags []string) (bool, error) {
 
 }
 
-func getFilesToMonitor() {
-	extensions := MANTIS_CONFIG.Extensions
-	ignore := MANTIS_CONFIG.Ignore
+func GetFilesToMonitor() {
+	extensions := mantis_config.Extensions
+	ignore := mantis_config.Ignore
 
 	extlist := strings.Split(extensions, ",")
 	ignorelist := strings.Split(ignore, ",")
 
-	filepath.WalkDir(WDIR, func(path string, d fs.DirEntry, err error) error {
+	filepath.WalkDir(wdirectory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			log.Fatal("error while scanning files to monitor", err)
 			return nil
@@ -160,12 +164,12 @@ func getFilesToMonitor() {
 		} else {
 			t := strings.Split(d.Name(), ".")
 			ext := "." + t[len(t)-1]
-			t_path := strings.Replace(filepath.ToSlash(path), filepath.ToSlash(WDIR)+"/", "", -1)
+			t_path := strings.Replace(filepath.ToSlash(path), filepath.ToSlash(wdirectory)+"/", "", -1)
 
 			if slices.Contains(extlist, ext) && !slices.Contains(ignorelist, t_path) {
 
 				fileinfo, _ := os.Stat(path)
-				MONITOR_LIST[path] = []int{int(fileinfo.Size()), int(fileinfo.ModTime().Unix())}
+				monitor_list[path] = []int{int(fileinfo.Size()), int(fileinfo.ModTime().Unix())}
 			} else {
 				//skip
 			}
@@ -175,14 +179,14 @@ func getFilesToMonitor() {
 
 }
 
-func decodeMantisConfig() error {
-	file, err := os.Open(CONFIG_FILE)
+func DecodeMantisConfig() error {
+	file, err := os.Open(config_file)
 	if err != nil {
-		return fmt.Errorf("error while opening %s", CONFIG_FILE)
+		return fmt.Errorf("error while opening %s", config_file)
 	}
 	defer file.Close()
 
-	if err := json.NewDecoder(file).Decode(&MANTIS_CONFIG); err != nil {
+	if err := json.NewDecoder(file).Decode(&mantis_config); err != nil {
 		return fmt.Errorf("error while decoding mantis.json")
 	}
 
@@ -191,47 +195,62 @@ func decodeMantisConfig() error {
 	return nil
 }
 
-func preExec() error {
+func PreExec() error {
+
+	if len(os.Args) == 1 {
+		usage()
+		os.Exit(0)
+	}
+	if len(os.Args) == 2 {
+		if os.Args[1] == "-h" {
+			usage()
+			os.Exit(0)
+		}
+		if os.Args[1] == "-v" {
+			returnVersion()
+			os.Exit(0)
+		}
+	}
 
 	globalargs = map[string][]string{
 		"-f": make([]string, 0),
 		"-a": make([]string, 0),
 		"-e": make([]string, 0),
 	}
-	err := parseArgs(globalargs, os.Args)
+	err := ParseArgs(globalargs, os.Args)
 	if err != nil {
 		log.Printf("parse error: %v", err)
 		usage()
 		os.Exit(1)
 	}
-	err = cleanFileArgs()
+	err = CleanFileArgs()
 	if err != nil {
 		return err
 	}
 
-	err = checkForGlobalConfig()
+	err = CheckForGlobalConfig()
 	if err != nil {
 		return err
 	}
 
-	localconfigpresent, err := checkForLocalConfig(globalargs["-f"])
+	localconfigpresent, err := CheckForLocalConfig(globalargs["-f"])
 	if err != nil {
 		return err
 	}
 	if localconfigpresent {
 		log.Printf("found local mantis config")
-		CONFIG_FILE = filepath.Join(WDIR, "mantis.json")
+		config_file = filepath.Join(wdirectory, "mantis.json")
 	} else {
 		log.Printf("using global mantis config")
-		CONFIG_FILE = getGlobalConfigPath()
+		config_file = GetGlobalConfigPath()
 	}
 
-	err = decodeMantisConfig()
+	err = DecodeMantisConfig()
 	if err != nil {
 		return err
 	}
 
-	getFilesToMonitor()
+	GetFilesToMonitor()
 
 	return nil
 }

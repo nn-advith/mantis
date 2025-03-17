@@ -12,7 +12,7 @@ import (
 	"syscall"
 )
 
-func getGlobalConfigPath() string {
+func GetGlobalConfigPath() string {
 	var globalConfigPath string
 	if home, err := os.UserHomeDir(); err != nil {
 		fmt.Println("unable to get user home dir", err)
@@ -22,7 +22,7 @@ func getGlobalConfigPath() string {
 	return filepath.Join(globalConfigPath, "mantis.json")
 }
 
-func killProcess() error {
+func KillProcess() error {
 
 	if cprocess != nil {
 
@@ -59,14 +59,14 @@ func killProcess() error {
 	return nil
 }
 
-func commandConstruct(args map[string][]string) (*exec.Cmd, error) {
+func CommandConstruct(args map[string][]string) (*exec.Cmd, error) {
 
 	var executor *exec.Cmd
 
 	if len(args["-a"]) != 0 {
 		executor = exec.Command("go", append(append([]string{"run"}, args["-f"]...), args["-a"]...)...)
 	} else {
-		argsEnv := strings.Split(MANTIS_CONFIG.Args, ",")
+		argsEnv := strings.Split(mantis_config.Args, ",")
 		if len(argsEnv) > 0 {
 			executor = exec.Command("go", append(append([]string{"run"}, args["-f"]...), argsEnv...)...)
 		} else {
@@ -76,14 +76,14 @@ func commandConstruct(args map[string][]string) (*exec.Cmd, error) {
 	if len(args["-e"]) > 0 {
 		executor.Env = append(os.Environ(), args["-e"]...)
 	} else {
-		configEnv := strings.Split(MANTIS_CONFIG.Env, ",")
+		configEnv := strings.Split(mantis_config.Env, ",")
 		if len(configEnv) > 0 {
 			executor.Env = append(os.Environ(), configEnv...)
 		}
 	}
 	executor.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // flag to run process and children as a group; avoid orphans on sigkill
 
-	// moving this to executionDriver for better(informative maybe) logging
+	// moving this to ExecutionDriver for better(informative maybe) logging
 
 	// executor.Stdout = os.Stdout
 	// executor.Stderr = os.Stderr

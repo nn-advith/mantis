@@ -13,12 +13,12 @@ import (
 	"strings"
 )
 
-func getGlobalConfigPath() string {
+func GetGlobalConfigPath() string {
 	globalConfigPath := filepath.Join(os.Getenv("APPDATA"), "mantis")
 	return filepath.Join(globalConfigPath, "mantis.json")
 }
 
-func killProcess() error {
+func KillProcess() error {
 	if cprocess != nil {
 
 		// os.FindProcess is stupid. it just finds the process but not the running status.
@@ -50,14 +50,14 @@ func killProcess() error {
 	return nil
 }
 
-func commandConstruct(args map[string][]string) (*exec.Cmd, error) {
+func CommandConstruct(args map[string][]string) (*exec.Cmd, error) {
 
 	var executor *exec.Cmd
 
 	if len(args["-a"]) != 0 {
 		executor = exec.Command("go", append(append([]string{"run"}, args["-f"]...), args["-a"]...)...)
 	} else {
-		argsEnv := strings.Split(MANTIS_CONFIG.Args, ",")
+		argsEnv := strings.Split(mantis_config.Args, ",")
 		if len(argsEnv) > 0 {
 			executor = exec.Command("go", append(append([]string{"run"}, args["-f"]...), argsEnv...)...)
 		} else {
@@ -67,13 +67,13 @@ func commandConstruct(args map[string][]string) (*exec.Cmd, error) {
 	if len(args["-e"]) > 0 {
 		executor.Env = append(os.Environ(), args["-e"]...)
 	} else {
-		configEnv := strings.Split(MANTIS_CONFIG.Env, ",")
+		configEnv := strings.Split(mantis_config.Env, ",")
 		if len(configEnv) > 0 {
 			executor.Env = append(os.Environ(), configEnv...)
 		}
 	}
 
-	// moving this to executionDriver for better(informative maybe) logging
+	// moving this to ExecutionDriver for better(informative maybe) logging
 
 	// executor.Stdout = os.Stdout
 	// executor.Stderr = os.Stderr

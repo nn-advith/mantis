@@ -24,25 +24,25 @@ type MantisConfig struct {
 	Args       string `json:"args"`
 }
 
-var MANTIS_CONFIG MantisConfig
-var CONFIG_FILE string
-var MONITOR_LIST map[string][]int = map[string][]int{}
-var WDIR string
+var mantis_config MantisConfig
+var config_file string
+var monitor_list map[string][]int = map[string][]int{}
+var wdirectory string
 
 var globalargs map[string][]string
 
 var mlock sync.Mutex
 var cprocess *os.Process
 
-func executionDriver(args map[string][]string) error {
+func ExecutionDriver(args map[string][]string) error {
 
 	mlock.Lock()
-	err := killProcess()
+	err := KillProcess()
 	if err != nil {
 
 	}
 
-	executor, err := commandConstruct(args)
+	executor, err := CommandConstruct(args)
 	if err != nil {
 		return fmt.Errorf("error constructing command: %V", err)
 	}
@@ -59,17 +59,17 @@ func executionDriver(args map[string][]string) error {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			logProcessInfo(scanner.Text())
+			LogProcessInfo(cprocess, scanner.Text())
 		}
 	}()
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			logProcessInfo(scanner.Text())
+			LogProcessInfo(cprocess, scanner.Text())
 		}
 	}()
 
-	execDelay, err := strconv.Atoi(MANTIS_CONFIG.Delay)
+	execDelay, err := strconv.Atoi(mantis_config.Delay)
 	if err != nil {
 		return fmt.Errorf("error in delay conversion; ensure delay is mentioned in milliseconds: %v", err)
 	}
@@ -91,12 +91,12 @@ func executionDriver(args map[string][]string) error {
 	return nil
 }
 
-func checkIfModified(channel chan Event) {
+func CheckIfModified(channel chan Event) {
 
 	for {
 		modified := false
 		var wg sync.WaitGroup
-		for k, v := range MONITOR_LIST {
+		for k, v := range monitor_list {
 			wg.Add(1)
 			go func(k string, v []int) {
 				defer wg.Done()
@@ -110,11 +110,11 @@ func checkIfModified(channel chan Event) {
 
 				if newsize != v[0] {
 					modified = true
-					MONITOR_LIST[k] = []int{newsize, newmodtime}
+					monitor_list[k] = []int{newsize, newmodtime}
 				} else {
 					if newmodtime > v[1] {
 						modified = true
-						MONITOR_LIST[k] = []int{newsize, newmodtime}
+						monitor_list[k] = []int{newsize, newmodtime}
 					}
 				}
 			}(k, v)
@@ -129,7 +129,7 @@ func checkIfModified(channel chan Event) {
 	}
 }
 
-func listenForInput(inputChannel chan int) {
+func ListenForInput(inputChannel chan int) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		text, _ := reader.ReadString('\n')
@@ -153,7 +153,7 @@ func main() {
 
 	initLogger()
 
-	err := preExec()
+	err := PreExec()
 	if err != nil {
 		log.Fatal("error during preexec:", err)
 		return
@@ -162,10 +162,10 @@ func main() {
 	filechannel := make(chan Event)
 	inputchannel := make(chan int)
 
-	go listenForInput(inputchannel)
-	go checkIfModified(filechannel)
+	go ListenForInput(inputchannel)
+	go CheckIfModified(filechannel)
 
-	err = executionDriver(globalargs)
+	err = ExecutionDriver(globalargs)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -182,13 +182,13 @@ func main() {
 
 				switch data {
 				case 0:
-					killProcess()
+					KillProcess()
 					close(inputchannel)
 					close(filechannel)
 					os.Exit(0)
 				case 1:
 					log.Printf("Restarting ... ")
-					executionDriver(globalargs)
+					ExecutionDriver(globalargs)
 					log.Printf("Restarted")
 				case -1:
 					log.Printf("unknown input;")
@@ -202,7 +202,7 @@ func main() {
 				}
 				switch data.eventcode {
 				case 101:
-					executionDriver(globalargs)
+					ExecutionDriver(globalargs)
 				}
 
 			}
