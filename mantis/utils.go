@@ -1,6 +1,6 @@
 // utilites package
 
-package main
+package mantis
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ import (
 
 // add logger here ig
 
-func initLogger() {
+func InitLogger() {
 	log.SetPrefix("mantis: ")
 }
 
@@ -29,11 +29,11 @@ func LogProcessInfo(proc *os.Process, logval string) {
 	log.SetPrefix("mantis: ")
 }
 
-func usage() {
+func Usage() {
 	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory> -a <args> -e <key=value>\nmantis -v for version\nmantis -h for help")
 }
 
-func runtimeCommandsLegend() {
+func RuntimeCommandsLegend() {
 	fmt.Printf("\nAllowed command chars:\nq\t-\tQuit mantis\nr\t-\tRestart processes\n\n")
 }
 
@@ -47,7 +47,7 @@ func ParseArgs(gargs map[string][]string, args []string) error {
 	currentkey := ""
 	for i := range tmpargs {
 		if _, exists := indexes[tmpargs[i]]; tmpargs[i][0] == '-' && !exists {
-			return fmt.Errorf("unknown key for normal usage")
+			return fmt.Errorf("unknown key for normal Usage")
 		}
 		// add error check if flag is empty
 		if _, exists := indexes[tmpargs[i]]; exists {
@@ -198,12 +198,12 @@ func DecodeMantisConfig() error {
 func PreExec() error {
 
 	if len(os.Args) == 1 {
-		usage()
+		Usage()
 		os.Exit(0)
 	}
 	if len(os.Args) == 2 {
 		if os.Args[1] == "-h" {
-			usage()
+			Usage()
 			os.Exit(0)
 		}
 		if os.Args[1] == "-v" {
@@ -220,7 +220,7 @@ func PreExec() error {
 	err := ParseArgs(globalargs, os.Args)
 	if err != nil {
 		log.Printf("parse error: %v", err)
-		usage()
+		Usage()
 		os.Exit(1)
 	}
 	err = CleanFileArgs()

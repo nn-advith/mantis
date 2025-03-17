@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	mantis "github.com/nn-advith/mantis"
+	"github.com/nn-advith/mantis/mantis"
 )
 
 func TestGetGlobalConfigPath(t *testing.T) {
