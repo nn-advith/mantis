@@ -30,6 +30,7 @@ var monitor_list map[string][]int = map[string][]int{}
 var wdirectory string
 
 var globalargs map[string][]string
+var globaldelay int
 
 var mlock sync.Mutex
 var cprocess *os.Process
@@ -89,9 +90,14 @@ func ExecutionDriver() error {
 		}
 	}()
 
-	execDelay, err := strconv.Atoi(mantis_config.Delay)
-	if err != nil {
-		return fmt.Errorf("error in delay conversion; ensure delay is mentioned in milliseconds: %v", err)
+	var execDelay int
+	if globaldelay != 0 {
+		execDelay = globaldelay
+	} else {
+		execDelay, err = strconv.Atoi(mantis_config.Delay)
+		if err != nil {
+			return fmt.Errorf("error in delay conversion; ensure delay is mentioned in milliseconds: %v", err)
+		}
 	}
 	if execDelay > 0 {
 		log.Printf("Delaying exec begin by %v milliseconds; sleeping now\n", execDelay)
