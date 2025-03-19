@@ -30,7 +30,7 @@ func LogProcessInfo(proc *os.Process, logval string) {
 }
 
 func Usage() {
-	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory> -a <args> -e <key=value>\nmantis -v for version\nmantis -h for help")
+	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory> -a <args> -e <key=value> -d <milliseconds>\nmantis -v for version\nmantis -h for help")
 }
 
 func RuntimeCommandsLegend() {
@@ -46,6 +46,18 @@ func ParseArgs(gargs map[string][]string, args []string) error {
 	tmpargs := args[1:]
 	currentkey := ""
 	for i := range tmpargs {
+		if tmpargs[i] == "-d" {
+			if !(i+1 < len(tmpargs)) {
+				return fmt.Errorf("delay value is empty")
+			}
+			delay, err := strconv.Atoi(tmpargs[i+1])
+			if err != nil {
+				return fmt.Errorf("error convert deplay value; use integer value (milliseconds)")
+			}
+			globaldelay = delay
+			i += 2
+			continue
+		}
 		if _, exists := indexes[tmpargs[i]]; tmpargs[i][0] == '-' && !exists {
 			return fmt.Errorf("unknown key for normal Usage")
 		}
@@ -217,6 +229,7 @@ func PreExec() error {
 		"-a": make([]string, 0),
 		"-e": make([]string, 0),
 	}
+
 	err := ParseArgs(globalargs, os.Args)
 	if err != nil {
 		log.Printf("parse error: %v", err)
