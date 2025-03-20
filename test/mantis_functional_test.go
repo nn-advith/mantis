@@ -9,54 +9,77 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
-func createLocalConfig(data map[string]string) error {
-	// data := map[string]string{
-	// 	"extensions": ".go",
-	// 	"ignore":     "",
-	// 	"delay":      "0",
-	// 	"env":        "",
-	// 	"args":       "",
-	// }
-
+func createLocalConfig(t *testing.T, data map[string]string) {
+	t.Helper()
 	jsondata, err := json.MarshalIndent(data, "", " ")
 	if err != nil {
-		return err
+		t.Fatalf("failed to marshal data %v", err)
 	}
 	err = os.WriteFile("./testdata/mantis.json", jsondata, 0644)
 	if err != nil {
-		return err
+		t.Fatalf("failed to write config file %v", err)
 	}
-	return nil
+
 }
 
-func cleanupLocalConfig() error {
+func cleanupLocalConfig(t *testing.T) {
+	t.Helper()
 	file := "./testdata/mantis.json"
 	err := os.Remove(file)
 	if err != nil {
-		return err
+		t.Fatalf("failed to remove temp config file %v", err)
 	}
-	return nil
 }
 
-func TestNoArgs(t *testing.T) {
-	cmd := exec.Command("./mantis")
+func runCommand(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	cmd := exec.Command("./mantis", args...)
 
-	//hold output in buffer
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 
 	err := cmd.Run()
+	return buf.String(), err
+}
+
+func runInteractiveCommand(t *testing.T, sec int, args ...string) (string, error) {
+	t.Helper()
+	cmd := exec.Command("./mantis", args...)
+
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatalf("failed to get stdin pipe: %v", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("failed to start command: %v", err)
+	}
+
+	time.Sleep(time.Duration(sec) * time.Second)
+	stdin.Write([]byte("q\n")) // Send stop command
+	err = cmd.Wait()
+	if err != nil {
+		t.Fatalf("command stop failed: %v", err)
+	}
+	return buf.String(), err
+}
+
+func TestNoArgs(t *testing.T) {
+	output, err := runCommand(t)
 	if err != nil {
 		t.Errorf("error executing binary: %v", err)
 	}
-
-	output := buf.String()
 	if !strings.Contains(output, "Usage:") {
 		t.Errorf("Usage not shown; got %v; failing test", output)
 	}
@@ -64,84 +87,39 @@ func TestNoArgs(t *testing.T) {
 
 func TestVersion(t *testing.T) {
 
-	cmd := exec.Command("./mantis", "-v")
-
-	//hold output in buffer
-	var buf bytes.Buffer
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
-
-	err := cmd.Run()
+	output, err := runCommand(t, "-v")
 	if err != nil {
 		t.Errorf("error executing binary: %v", err)
 	}
 
 	pattern := `^(?m)mantis v[0-9]+\.[0-9]+\.[0-9]+$`
 	re := regexp.MustCompile(pattern)
-
-	if !re.MatchString(buf.String()) {
-		t.Errorf("Doesn't match pattern %q; Got %q", pattern, buf.String())
+	if !re.MatchString(output) {
+		t.Errorf("Doesn't match pattern %q; Got %q", pattern, output)
 	}
 
 }
 
 func TestHelpArgs(t *testing.T) {
 
-	cmd := exec.Command("./mantis", "-h")
-
-	//hold output in buffer
-	var buf bytes.Buffer
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
-
-	err := cmd.Run()
+	output, err := runCommand(t, "-h")
 	if err != nil {
 		t.Errorf("error executing binary: %v", err)
 	}
-	output := buf.String()
 	if !strings.Contains(output, "Usage:") {
 		t.Errorf("Usage not shown; got %v; failing test", output)
 	}
 }
 
 func Test_NoLC_NoMod_SF(t *testing.T) {
-	cmd := exec.Command("./mantis", "-f", "./testdata/sample.go")
-	var buf bytes.Buffer
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
 
-	stdin, err := cmd.StdinPipe() //input pipe to send quit command
+	output, err := runInteractiveCommand(t, 1, "-f", "./testdata/sample.go")
 	if err != nil {
-		t.Fatal("unable to configure command")
+		t.Errorf("error executing command %v", err)
 	}
-
-	// err = createLocalConfig()
-	// if err != nil {
-	// 	t.Errorf("some error")
-	// }
-	// t.Cleanup(func() {
-	// 	err = cleanupLocalConfig()
-	// 	if err != nil {
-	// 		t.Fatal("error cleaning up dummy config json; please remove manually")
-	// 	}
-	// })
-
 	expected1 := "using global mantis config"
 	expected2 := `run ./testdata/sample.go`
 	pattern := `(?m) started new process ([0-9]+)`
-
-	if err := cmd.Start(); err != nil { //Start over Run to wait
-		t.Fatalf("error executing command %v", err)
-	}
-
-	time.Sleep(1 * time.Second)
-
-	stdin.Write([]byte("q\n")) //send stop
-	err = cmd.Wait()
-	if err != nil {
-		t.Fatalf("error waiting for stop: %v", err)
-	}
-	output := buf.String()
 
 	re := regexp.MustCompile(pattern)
 	match := re.FindStringSubmatch(output)
@@ -164,15 +142,94 @@ func Test_NoLC_NoMod_SF(t *testing.T) {
 
 }
 
-func Test_LCwD_NoMod_SF(t *testing.T) {
+func Test_NC_Delay(t *testing.T) {
+	output, err := runInteractiveCommand(t, 2, "-f", "./testdata/sample.go", "-d", "1000")
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	expected := "Delaying exec begin by 1000 milliseconds"
+	if !strings.Contains(output, expected) {
+		t.Fatal("failed; execution not delated as expected")
+	}
 
 }
+
+func Test_LCwD_NoMod_SF(t *testing.T) {
+	data := map[string]string{
+		"extensions": ".go",
+		"ignore":     "",
+		"delay":      "1000",
+		"env":        "",
+		"args":       "",
+	}
+	createLocalConfig(t, data)
+
+	t.Cleanup(func() {
+		cleanupLocalConfig(t)
+	})
+
+	output, err := runInteractiveCommand(t, 2, "-f", "./testdata/sample.go")
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+
+	expected := "Delaying exec begin by 1000 milliseconds"
+	if !strings.Contains(output, expected) {
+		t.Fatal("failed; execution not delated as expected")
+	}
+}
+
+func Test_NC_Args(t *testing.T) {
+	output, err := runInteractiveCommand(t, 1, "-f", "./testdata/sample.go", "-a", "arg1")
+	if err != nil {
+		t.Errorf("error during command execution: %v", err)
+	}
+	pattern := `(?m)Starting execution: *.*testdata/sample.go ([0-9a-zA-Z]+)`
+
+	re := regexp.MustCompile(pattern)
+	match := re.FindStringSubmatch(output)
+	if len(match) > 1 {
+		if !(match[1] == "arg1") || !re.MatchString(output) {
+			t.Errorf("output doesnt match expected pattern : %v", pattern)
+		}
+	} else {
+		t.Errorf("unable to find arg passed")
+	}
+}
+
+func Test_NC_Env(t *testing.T) {
+
+	inititalEnvLength := len(os.Environ())
+	output, err := runInteractiveCommand(t, 1, "-f", "./testdata/sample.go", "-e", "key=val")
+	if err != nil {
+		t.Errorf("error during command execution: %v", err)
+	}
+	pattern := `(?m)[0-9]+> env: *([0-9]+)`
+
+	re := regexp.MustCompile(pattern)
+	match := re.FindStringSubmatch(output)
+	if len(match) > 1 {
+		finalEnvLength, err := strconv.Atoi(match[1])
+		if err != nil {
+			t.Errorf("failed to convert env length from output")
+		}
+		if !(finalEnvLength == inititalEnvLength+1) || !re.MatchString(output) {
+			t.Errorf("failed verifying env values; expected number %d, got %d", inititalEnvLength+1, finalEnvLength)
+		}
+	} else {
+		t.Errorf("unable to get expected output")
+	}
+}
+
+// func Test_NC_EnvIncorrect() {
+
+// }
 
 // tests to be added; check if logic can be reused
 //
 // no config simple file with args
 // no config simple file with env
-// local config simple file with delay, no mod
+// local config simple file with delay, no mod  -- done
 // local config simple file with args, no mod
 // local config simple file with env, no mod
 // local confif simple file, modify
@@ -182,3 +239,5 @@ func Test_LCwD_NoMod_SF(t *testing.T) {
 //negative scenarios
 // no config, simple file -f error cases
 // see what else
+// restart command test
+// quit test
