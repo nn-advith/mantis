@@ -30,7 +30,7 @@ func LogProcessInfo(proc *os.Process, logval string) {
 }
 
 func Usage() {
-	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory> -a <args> -e <key=value> -d <milliseconds>\nmantis -v for version\nmantis -h for help")
+	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory>(mandatory) -a <args> -e <key=value> -d <milliseconds>\nmantis -v for version\nmantis -h for help")
 }
 
 func RuntimeCommandsLegend() {
@@ -42,32 +42,45 @@ func returnVersion() {
 }
 
 func ParseArgs(gargs map[string][]string, args []string) error {
-	var indexes = map[string]int{"-a": -1, "-e": -1, "-f": -1}
+	var indexes = map[string]int{"-a": -1, "-e": -1, "-f": -1, "-d": -1}
 	tmpargs := args[1:]
 	currentkey := ""
 	for i := range tmpargs {
-		if tmpargs[i] == "-d" {
-			if !(i+1 < len(tmpargs)) {
-				return fmt.Errorf("delay value is empty")
-			}
-			delay, err := strconv.Atoi(tmpargs[i+1])
-			if err != nil {
-				return fmt.Errorf("error convert deplay value; use integer value (milliseconds)")
-			}
-			globaldelay = delay
-			i += 2
-			continue
-		}
+
 		if _, exists := indexes[tmpargs[i]]; tmpargs[i][0] == '-' && !exists {
 			return fmt.Errorf("unknown key for normal Usage")
 		}
 		// add error check if flag is empty
 		if _, exists := indexes[tmpargs[i]]; exists {
 			currentkey = tmpargs[i]
+			if i == len(tmpargs)-1 && currentkey[0] == '-' || i+1 < len(tmpargs) && tmpargs[i+1][0] == '-' {
+				switch currentkey {
+				case "-f":
+					return fmt.Errorf("-f argument cannot be empty")
+
+				case "-a", "-e", "-d":
+					log.Println("empty values for " + currentkey + "; reading from config (ignoring if not present)")
+
+				}
+			}
 			continue
+		}
+		if currentkey == "-d" {
+			delay, err := strconv.Atoi(tmpargs[i])
+			if err != nil {
+				return fmt.Errorf("error convert deplay value; use integer value (milliseconds)")
+			}
+			globaldelay = delay
+			if i+1 < len(tmpargs) {
+				i += 1
+				continue
+			}
 		}
 		gargs[currentkey] = append(gargs[currentkey], tmpargs[i])
 
+	}
+	if len(gargs["-f"]) == 0 {
+		return fmt.Errorf("-f argument must be present")
 	}
 	return nil
 
