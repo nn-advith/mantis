@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 )
 
 var FILEPATH string = "./testdata/sample.go"
+var MODIFY_FILEPATH string
 
 func createLocalConfig(t *testing.T, data map[string]string) {
 	t.Helper()
@@ -101,7 +103,7 @@ func runInteractiveCommand(t *testing.T, sec int, sendStop bool, restart bool, m
 
 	time.Sleep(time.Duration(sec) * time.Second)
 	if modify {
-		modifyTestFile(t, FILEPATH, "//comment to simulate modification")
+		modifyTestFile(t, MODIFY_FILEPATH, "//comment to simulate modification")
 		time.Sleep(time.Duration(sec) * time.Second)
 
 	}
@@ -164,6 +166,18 @@ func Test_NC_Quit(t *testing.T) {
 	re := regexp.MustCompile(pattern)
 	if !re.MatchString(output) {
 		t.Errorf("failed to quit, expected pattern in output: %v", pattern)
+	}
+}
+
+func Test_NC_Restart(t *testing.T) {
+	output, err := runInteractiveCommand(t, 1, true, true, false, "-f", FILEPATH)
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	pattern := `(?m) *.*Restarting[\s\S]*Restarted`
+	re := regexp.MustCompile(pattern)
+	if !re.MatchString(output) {
+		t.Errorf("expected process to restart; got %v", output)
 	}
 }
 
@@ -350,7 +364,8 @@ func Test_LCwE_NoMod_SF(t *testing.T) {
 }
 
 func Test_NC_Mod_SF(t *testing.T) {
-	t.Cleanup(func() { resetModification(t, FILEPATH) })
+	MODIFY_FILEPATH = "./testdata/sample.go"
+	t.Cleanup(func() { resetModification(t, MODIFY_FILEPATH) })
 	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
 	if err != nil {
 		t.Errorf("error executing command %v", err)
@@ -362,26 +377,116 @@ func Test_NC_Mod_SF(t *testing.T) {
 	}
 }
 
-// func Test_Sample(t *testing.T) {
-// 	modifyTestFile(t, FILEPATH, "//comment to simulate modification")
-// 	time.Sleep(5 * time.Second)
-// 	resetModification(t, FILEPATH)
+func Test_LCwExt_Mod_SF(t *testing.T) {
+	data := map[string]string{
+		"extensions": ".go,.txt",
+		"ignore":     "",
+		"delay":      "",
+		"env":        "",
+		"args":       "",
+	}
+	MODIFY_FILEPATH = "./testdata/sample.txt"
+	createLocalConfig(t, data)
+	dirpath := filepath.Dir(FILEPATH)
+	sampletxt := filepath.Join(dirpath, "sample.txt")
+	file, err := os.Create(sampletxt)
+	if err != nil {
+		t.Fatalf("unable to create sample file")
+	}
+	defer file.Close()
+
+	t.Cleanup(func() {
+		cleanupLocalConfig(t)
+		os.Remove(sampletxt)
+	})
+
+	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	pattern := `(?m) *.*Modified[\s\S]*started new process`
+	re := regexp.MustCompile(pattern)
+	if !re.MatchString(output) {
+		t.Errorf("modification not detected, process not restarted")
+	}
+}
+
+func Test_LCwIgnore_Mod_SF(t *testing.T) {
+	data := map[string]string{
+		"extensions": ".go",
+		"ignore":     "sample.txt",
+		"delay":      "",
+		"env":        "",
+		"args":       "",
+	}
+	MODIFY_FILEPATH = "./testdata/sample.txt"
+	createLocalConfig(t, data)
+	dirpath := filepath.Dir(FILEPATH)
+	sampletxt := filepath.Join(dirpath, "sample.txt")
+	file, err := os.Create(sampletxt)
+	if err != nil {
+		t.Fatalf("unable to create sample file")
+	}
+	defer file.Close()
+
+	t.Cleanup(func() {
+		cleanupLocalConfig(t)
+		os.Remove(sampletxt)
+	})
+
+	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	pattern := `(?m) *.*Modified[\s\S]*started new process`
+	re := regexp.MustCompile(pattern)
+	if re.MatchString(output) {
+		t.Errorf("modification detected, expected modification to be ignored")
+	}
+}
+
+// func Test_LCwIgnoreDir_Mod_SF(t *testing.T) {
+// 	data := map[string]string{
+// 		"extensions": ".go",
+// 		"ignore":     "sampledir/",
+// 		"delay":      "",
+// 		"env":        "",
+// 		"args":       "",
+// 	}
+// 	MODIFY_FILEPATH = "./testdata/sampledir/sample.txt"
+// 	createLocalConfig(t, data)
+// 	dirpath := filepath.Dir(FILEPATH)
+// 	sampletxt := filepath.Join(dirpath, "sample.txt")
+// 	file, err := os.Create(sampletxt)
+// 	if err != nil {
+// 		t.Fatalf("unable to create sample file")
+// 	}
+// 	defer file.Close()
+
+// 	t.Cleanup(func() {
+// 		cleanupLocalConfig(t)
+// 		os.Remove(sampletxt)
+// 	})
+
+// 	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
+// 	if err != nil {
+// 		t.Errorf("error executing command %v", err)
+// 	}
+// 	pattern := `(?m) *.*Modified[\s\S]*started new process`
+// 	re := regexp.MustCompile(pattern)
+// 	if re.MatchString(output) {
+// 		t.Errorf("modification detected, expected modification to be ignored")
+// 	}
 // }
 
-// tests to be added; check if logic can be reused
-//
-// no config simple file with args  -- done
-// no config simple file with env  -- done
-// no config simple file with incorrect env --done
-// local config simple file with delay, no mod  -- done
-// local config simple file with args, no mod -- done
-// local config simple file with env, no mod -- done
-// local confif simple file, modify
-// local config simple file, ignore dir, modify
-// local config simple file, extensions, modify
+//##########################
 
-//negative scenarios
-// no config, simple file -f error cases
-// see what else
-// restart command test
-// quit test -- done
+// tests to be added; check if logic can be reused
+// negative tests
+
+// modify with syntax errors;
+// reordered flags
+// empty -f flag
+// empty -a,-e, -d flag
+// ignore dir
+// multiple -f args -> should start proper
