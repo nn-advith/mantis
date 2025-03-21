@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -304,10 +305,15 @@ func Test_NC_EnvIncorrect(t *testing.T) {
 	if err != nil {
 		t.Errorf("error during command execution: %v", err)
 	}
-	pattern := `(?m) *.* The parameter is incorrect`
-	re := regexp.MustCompile(pattern)
-	if !re.MatchString(output) {
-		t.Errorf("failed; expected output containing pattern %v", pattern)
+
+	if runtime.GOOS == "windows" {
+		pattern := `(?m) *.* The parameter is incorrect`
+		re := regexp.MustCompile(pattern)
+		if !re.MatchString(output) {
+			t.Errorf("[windows]failed; expected output containing pattern %v", pattern)
+		}
+	} else {
+		t.Logf("skipping test check; linux allows empty ENV vars")
 	}
 }
 
