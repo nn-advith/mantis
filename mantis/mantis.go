@@ -94,9 +94,11 @@ func ExecutionDriver() error {
 	if globaldelay != 0 {
 		execDelay = globaldelay
 	} else {
-		execDelay, err = strconv.Atoi(mantis_config.Delay)
-		if err != nil {
-			return fmt.Errorf("error in delay conversion; ensure delay is mentioned in milliseconds: %v", err)
+		if mantis_config.Delay != "" {
+			execDelay, err = strconv.Atoi(mantis_config.Delay)
+			if err != nil {
+				return fmt.Errorf("error in delay conversion; ensure delay is mentioned in milliseconds: %v", err)
+			}
 		}
 	}
 	if execDelay > 0 {
