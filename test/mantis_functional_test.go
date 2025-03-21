@@ -61,11 +61,19 @@ func resetModification(t *testing.T, file string) {
 	if err != nil {
 		t.Fatalf("error reading file %v", err)
 	}
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+
+	var nl string
+	if bytes.Contains(data, []byte("\r\n")) {
+		nl = "\r\n"
+	} else {
+		nl = "\n"
+	}
+
+	lines := strings.Split(strings.TrimRight(string(data), "\r\n"), nl)
 	if len(lines) > 0 {
 		lines = lines[0 : len(lines)-1]
 	}
-	err = os.WriteFile(file, []byte(strings.Join(lines, "\n")), 0644)
+	err = os.WriteFile(file, []byte(strings.Join(lines, nl)+nl), 0644)
 	if err != nil {
 		t.Fatalf("unable to write back %v", err)
 	}
