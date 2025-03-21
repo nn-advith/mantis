@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+var FILEPATH string = "./testdata/sample.go"
+
 func createLocalConfig(t *testing.T, data map[string]string) {
 	t.Helper()
 	jsondata, err := json.MarshalIndent(data, "", " ")
@@ -37,6 +39,37 @@ func cleanupLocalConfig(t *testing.T) {
 	}
 }
 
+func modifyTestFile(t *testing.T, file string, content string) {
+	t.Helper()
+	// newcomment := "//comment to simulate modification"
+	f, err := os.OpenFile(file, os.O_APPEND, 0777)
+	if err != nil {
+		t.Fatalf("unable to open file for modification: %v", err)
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString(content); err != nil {
+		t.Fatalf("unable to simulate modification of file %v", err)
+	}
+}
+
+func resetModification(t *testing.T, file string) {
+	t.Helper()
+	data, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("error reading file %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) > 0 {
+		lines = lines[0 : len(lines)-1]
+	}
+	err = os.WriteFile(file, []byte(strings.Join(lines, "\n")), 0644)
+	if err != nil {
+		t.Fatalf("unable to write back %v", err)
+	}
+
+}
+
 func runCommand(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	cmd := exec.Command("./mantis", args...)
@@ -49,7 +82,7 @@ func runCommand(t *testing.T, args ...string) (string, error) {
 	return buf.String(), err
 }
 
-func runInteractiveCommand(t *testing.T, sec int, args ...string) (string, error) {
+func runInteractiveCommand(t *testing.T, sec int, sendStop bool, restart bool, modify bool, args ...string) (string, error) {
 	t.Helper()
 	cmd := exec.Command("./mantis", args...)
 
@@ -67,10 +100,21 @@ func runInteractiveCommand(t *testing.T, sec int, args ...string) (string, error
 	}
 
 	time.Sleep(time.Duration(sec) * time.Second)
-	stdin.Write([]byte("q\n")) // Send stop command
-	err = cmd.Wait()
-	if err != nil {
-		t.Fatalf("command stop failed: %v", err)
+	if modify {
+		modifyTestFile(t, FILEPATH, "//comment to simulate modification")
+		time.Sleep(time.Duration(sec) * time.Second)
+
+	}
+	if restart {
+		stdin.Write([]byte("r\n")) //Send restart
+		time.Sleep(time.Duration(sec) * time.Second)
+	}
+	if sendStop {
+		stdin.Write([]byte("q\n")) // Send stop command
+		err = cmd.Wait()
+		if err != nil {
+			t.Fatalf("command stop failed: %v", err)
+		}
 	}
 	return buf.String(), err
 }
@@ -111,9 +155,21 @@ func TestHelpArgs(t *testing.T) {
 	}
 }
 
-func Test_NoLC_NoMod_SF(t *testing.T) {
+func Test_NC_Quit(t *testing.T) {
+	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH)
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	pattern := `(?m) *.* process has terminated`
+	re := regexp.MustCompile(pattern)
+	if !re.MatchString(output) {
+		t.Errorf("failed to quit, expected pattern in output: %v", pattern)
+	}
+}
 
-	output, err := runInteractiveCommand(t, 1, "-f", "./testdata/sample.go")
+func Test_NC_NoMod_SF(t *testing.T) {
+
+	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH)
 	if err != nil {
 		t.Errorf("error executing command %v", err)
 	}
@@ -143,7 +199,7 @@ func Test_NoLC_NoMod_SF(t *testing.T) {
 }
 
 func Test_NC_Delay(t *testing.T) {
-	output, err := runInteractiveCommand(t, 2, "-f", "./testdata/sample.go", "-d", "1000")
+	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH, "-d", "1000")
 	if err != nil {
 		t.Errorf("error executing command %v", err)
 	}
@@ -168,7 +224,7 @@ func Test_LCwD_NoMod_SF(t *testing.T) {
 		cleanupLocalConfig(t)
 	})
 
-	output, err := runInteractiveCommand(t, 2, "-f", "./testdata/sample.go")
+	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH)
 	if err != nil {
 		t.Errorf("error executing command %v", err)
 	}
@@ -180,7 +236,7 @@ func Test_LCwD_NoMod_SF(t *testing.T) {
 }
 
 func Test_NC_Args(t *testing.T) {
-	output, err := runInteractiveCommand(t, 1, "-f", "./testdata/sample.go", "-a", "arg1")
+	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH, "-a", "arg1")
 	if err != nil {
 		t.Errorf("error during command execution: %v", err)
 	}
@@ -200,7 +256,7 @@ func Test_NC_Args(t *testing.T) {
 func Test_NC_Env(t *testing.T) {
 
 	inititalEnvLength := len(os.Environ())
-	output, err := runInteractiveCommand(t, 1, "-f", "./testdata/sample.go", "-e", "key=val")
+	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH, "-e", "key=val")
 	if err != nil {
 		t.Errorf("error during command execution: %v", err)
 	}
@@ -221,17 +277,105 @@ func Test_NC_Env(t *testing.T) {
 	}
 }
 
-// func Test_NC_EnvIncorrect() {
+func Test_NC_EnvIncorrect(t *testing.T) {
+	output, err := runInteractiveCommand(t, 1, false, false, false, "-f", FILEPATH, "-e", "key")
+	if err != nil {
+		t.Errorf("error during command execution: %v", err)
+	}
+	pattern := `(?m) *.* The parameter is incorrect`
+	re := regexp.MustCompile(pattern)
+	if !re.MatchString(output) {
+		t.Errorf("failed; expected output containing pattern %v", pattern)
+	}
+}
 
+func Test_LCwA_NoMod_SF(t *testing.T) {
+	data := map[string]string{
+		"extensions": ".go",
+		"ignore":     "",
+		"delay":      "",
+		"env":        "",
+		"args":       "arg1,arg2",
+	}
+	createLocalConfig(t, data)
+
+	t.Cleanup(func() {
+		cleanupLocalConfig(t)
+	})
+
+	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH)
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	pattern := `(?m)Starting execution: *.*testdata/sample.go arg1 arg2`
+	re := regexp.MustCompile(pattern)
+	if !re.MatchString(output) {
+		t.Errorf("expected output to match pattern %v", pattern)
+	}
+}
+
+func Test_LCwE_NoMod_SF(t *testing.T) {
+	data := map[string]string{
+		"extensions": ".go",
+		"ignore":     "",
+		"delay":      "",
+		"env":        "key1=val1,key2=val2",
+		"args":       "",
+	}
+	createLocalConfig(t, data)
+
+	t.Cleanup(func() {
+		cleanupLocalConfig(t)
+	})
+	inititalEnvLength := len(os.Environ())
+	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH)
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	pattern := `(?m)[0-9]+> env: *([0-9]+)`
+
+	re := regexp.MustCompile(pattern)
+	match := re.FindStringSubmatch(output)
+	if len(match) > 1 {
+		finalEnvLength, err := strconv.Atoi(match[1])
+		if err != nil {
+			t.Errorf("failed to convert env length from output")
+		}
+		if !(finalEnvLength == inititalEnvLength+2) || !re.MatchString(output) {
+			t.Errorf("failed verifying env values; expected number %d, got %d", inititalEnvLength+2, finalEnvLength)
+		}
+	} else {
+		t.Errorf("unable to get expected output")
+	}
+}
+
+func Test_NC_Mod_SF(t *testing.T) {
+	t.Cleanup(func() { resetModification(t, FILEPATH) })
+	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	pattern := `(?m) *.*Modified[\s\S]*started new process`
+	re := regexp.MustCompile(pattern)
+	if !re.MatchString(output) {
+		t.Errorf("modification not detected, process not restarted")
+	}
+}
+
+// func Test_Sample(t *testing.T) {
+// 	modifyTestFile(t, FILEPATH, "//comment to simulate modification")
+// 	time.Sleep(5 * time.Second)
+// 	resetModification(t, FILEPATH)
 // }
 
 // tests to be added; check if logic can be reused
 //
-// no config simple file with args
-// no config simple file with env
+// no config simple file with args  -- done
+// no config simple file with env  -- done
+// no config simple file with incorrect env --done
 // local config simple file with delay, no mod  -- done
-// local config simple file with args, no mod
-// local config simple file with env, no mod
+// local config simple file with args, no mod -- done
+// local config simple file with env, no mod -- done
 // local confif simple file, modify
 // local config simple file, ignore dir, modify
 // local config simple file, extensions, modify
@@ -240,4 +384,4 @@ func Test_NC_Env(t *testing.T) {
 // no config, simple file -f error cases
 // see what else
 // restart command test
-// quit test
+// quit test -- done
