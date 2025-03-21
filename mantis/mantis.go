@@ -150,6 +150,7 @@ func CheckIfModified(channel chan Event) {
 
 		wg.Wait()
 		if modified {
+			log.Println("Modified")
 			channel <- Event{EventCode: 101, EventName: "modified"}
 		}
 
