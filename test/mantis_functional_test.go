@@ -4,7 +4,6 @@ package main_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,71 +14,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/nn-advith/mantis/testutils"
 )
 
 var FILEPATH string = "./testdata/sample.go"
 var MODIFY_FILEPATH string
-
-func createLocalConfig(t *testing.T, data map[string]string) {
-	t.Helper()
-	jsondata, err := json.MarshalIndent(data, "", " ")
-	if err != nil {
-		t.Fatalf("failed to marshal data %v", err)
-	}
-	err = os.WriteFile("./testdata/mantis.json", jsondata, 0644)
-	if err != nil {
-		t.Fatalf("failed to write config file %v", err)
-	}
-
-}
-
-func cleanupLocalConfig(t *testing.T) {
-	t.Helper()
-	file := "./testdata/mantis.json"
-	err := os.Remove(file)
-	if err != nil {
-		t.Fatalf("failed to remove temp config file %v", err)
-	}
-}
-
-func modifyTestFile(t *testing.T, file string, content string) {
-	t.Helper()
-	// newcomment := "//comment to simulate modification"
-	f, err := os.OpenFile(file, os.O_APPEND, 0777)
-	if err != nil {
-		t.Fatalf("unable to open file for modification: %v", err)
-	}
-	defer f.Close()
-
-	if _, err := f.WriteString(content); err != nil {
-		t.Fatalf("unable to simulate modification of file %v", err)
-	}
-}
-
-func resetModification(t *testing.T, file string) {
-	t.Helper()
-	data, err := os.ReadFile(file)
-	if err != nil {
-		t.Fatalf("error reading file %v", err)
-	}
-
-	var nl string
-	if bytes.Contains(data, []byte("\r\n")) {
-		nl = "\r\n"
-	} else {
-		nl = "\n"
-	}
-
-	lines := strings.Split(strings.TrimRight(string(data), "\r\n"), nl)
-	if len(lines) > 0 {
-		lines = lines[0 : len(lines)-1]
-	}
-	err = os.WriteFile(file, []byte(strings.Join(lines, nl)+nl), 0644)
-	if err != nil {
-		t.Fatalf("unable to write back %v", err)
-	}
-
-}
 
 func runCommand(t *testing.T, args ...string) (string, error) {
 	t.Helper()
@@ -112,7 +52,7 @@ func runInteractiveCommand(t *testing.T, sec int, sendStop bool, restart bool, m
 
 	time.Sleep(time.Duration(sec) * time.Second)
 	if modify {
-		modifyTestFile(t, MODIFY_FILEPATH, "//comment to simulate modification")
+		testutils.ModifyTestFile(t, MODIFY_FILEPATH, "//comment to simulate modification")
 		time.Sleep(time.Duration(sec) * time.Second)
 
 	}
@@ -133,7 +73,7 @@ func runInteractiveCommand(t *testing.T, sec int, sendStop bool, restart bool, m
 func TestNoArgs(t *testing.T) {
 	output, err := runCommand(t)
 	if err != nil {
-		t.Errorf("error executing binary: %v", err)
+		t.Fatalf("error executing binary: %v", err)
 	}
 	if !strings.Contains(output, "Usage:") {
 		t.Errorf("Usage not shown; got %v; failing test", output)
@@ -144,7 +84,7 @@ func TestVersion(t *testing.T) {
 
 	output, err := runCommand(t, "-v")
 	if err != nil {
-		t.Errorf("error executing binary: %v", err)
+		t.Fatalf("error executing binary: %v", err)
 	}
 
 	pattern := `^(?m)mantis v[0-9]+\.[0-9]+\.[0-9]+$`
@@ -159,7 +99,7 @@ func TestHelpArgs(t *testing.T) {
 
 	output, err := runCommand(t, "-h")
 	if err != nil {
-		t.Errorf("error executing binary: %v", err)
+		t.Fatalf("error executing binary: %v", err)
 	}
 	if !strings.Contains(output, "Usage:") {
 		t.Errorf("Usage not shown; got %v; failing test", output)
@@ -169,7 +109,7 @@ func TestHelpArgs(t *testing.T) {
 func Test_NC_Quit(t *testing.T) {
 	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	pattern := `(?m) *.* process has terminated`
 	re := regexp.MustCompile(pattern)
@@ -181,7 +121,7 @@ func Test_NC_Quit(t *testing.T) {
 func Test_NC_Restart(t *testing.T) {
 	output, err := runInteractiveCommand(t, 1, true, true, false, "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	pattern := `(?m) *.*Restarting[\s\S]*Restarted`
 	re := regexp.MustCompile(pattern)
@@ -194,7 +134,7 @@ func Test_NC_NoMod_SF(t *testing.T) {
 
 	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	expected1 := "using global mantis config"
 	expected2 := `run ./testdata/sample.go`
@@ -224,7 +164,7 @@ func Test_NC_NoMod_SF(t *testing.T) {
 func Test_NC_NoMod_Dir(t *testing.T) {
 	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", filepath.Dir(FILEPATH)+"/")
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	pattern := `(?m) started new process ([0-9]+)`
 
@@ -245,7 +185,7 @@ func Test_NC_NoMod_Dir(t *testing.T) {
 func Test_NC_NoMod_MF(t *testing.T) {
 	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", filepath.Dir(FILEPATH)+"/sample.go", filepath.Dir(FILEPATH)+"/helper.go")
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	pattern := `(?m) started new process ([0-9]+)`
 
@@ -266,7 +206,7 @@ func Test_NC_NoMod_MF(t *testing.T) {
 func Test_NC_Delay(t *testing.T) {
 	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH, "-d", "1000")
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	expected := "Delaying exec begin by 1000 milliseconds"
 	if !strings.Contains(output, expected) {
@@ -283,15 +223,15 @@ func Test_LCwD_NoMod_SF(t *testing.T) {
 		"env":        "",
 		"args":       "",
 	}
-	createLocalConfig(t, data)
+	testutils.CreateLocalConfig(t, data)
 
 	t.Cleanup(func() {
-		cleanupLocalConfig(t)
+		testutils.CleanupLocalConfig(t)
 	})
 
 	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 
 	expected := "Delaying exec begin by 1000 milliseconds"
@@ -303,7 +243,7 @@ func Test_LCwD_NoMod_SF(t *testing.T) {
 func Test_NC_Args(t *testing.T) {
 	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH, "-a", "arg1")
 	if err != nil {
-		t.Errorf("error during command execution: %v", err)
+		t.Fatalf("error during command execution: %v", err)
 	}
 	pattern := `(?m)Starting execution: *.*testdata/sample.go ([0-9a-zA-Z]+)`
 
@@ -323,7 +263,7 @@ func Test_NC_Env(t *testing.T) {
 	inititalEnvLength := len(os.Environ())
 	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH, "-e", "key=val")
 	if err != nil {
-		t.Errorf("error during command execution: %v", err)
+		t.Fatalf("error during command execution: %v", err)
 	}
 	pattern := `(?m)[0-9]+> env: *([0-9]+)`
 
@@ -345,7 +285,7 @@ func Test_NC_Env(t *testing.T) {
 func Test_NC_EnvIncorrect(t *testing.T) {
 	output, err := runInteractiveCommand(t, 1, false, false, false, "-f", FILEPATH, "-e", "key")
 	if err != nil {
-		t.Errorf("error during command execution: %v", err)
+		t.Fatalf("error during command execution: %v", err)
 	}
 
 	if runtime.GOOS == "windows" {
@@ -367,15 +307,15 @@ func Test_LCwA_NoMod_SF(t *testing.T) {
 		"env":        "",
 		"args":       "arg1,arg2",
 	}
-	createLocalConfig(t, data)
+	testutils.CreateLocalConfig(t, data)
 
 	t.Cleanup(func() {
-		cleanupLocalConfig(t)
+		testutils.CleanupLocalConfig(t)
 	})
 
 	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	pattern := `(?m)Starting execution: *.*testdata/sample.go arg1 arg2`
 	re := regexp.MustCompile(pattern)
@@ -392,15 +332,15 @@ func Test_LCwE_NoMod_SF(t *testing.T) {
 		"env":        "key1=val1,key2=val2",
 		"args":       "",
 	}
-	createLocalConfig(t, data)
+	testutils.CreateLocalConfig(t, data)
 
 	t.Cleanup(func() {
-		cleanupLocalConfig(t)
+		testutils.CleanupLocalConfig(t)
 	})
 	inititalEnvLength := len(os.Environ())
 	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	pattern := `(?m)[0-9]+> env: *([0-9]+)`
 
@@ -421,10 +361,10 @@ func Test_LCwE_NoMod_SF(t *testing.T) {
 
 func Test_NC_Mod_SF(t *testing.T) {
 	MODIFY_FILEPATH = "./testdata/sample.go"
-	t.Cleanup(func() { resetModification(t, MODIFY_FILEPATH) })
+	t.Cleanup(func() { testutils.ResetModification(t, MODIFY_FILEPATH) })
 	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	pattern := `(?m) *.*Modified[\s\S]*started new process`
 	re := regexp.MustCompile(pattern)
@@ -442,7 +382,7 @@ func Test_LCwExt_Mod_SF(t *testing.T) {
 		"args":       "",
 	}
 	MODIFY_FILEPATH = "./testdata/sample.txt"
-	createLocalConfig(t, data)
+	testutils.CreateLocalConfig(t, data)
 	dirpath := filepath.Dir(FILEPATH)
 	sampletxt := filepath.Join(dirpath, "sample.txt")
 	file, err := os.Create(sampletxt)
@@ -452,13 +392,13 @@ func Test_LCwExt_Mod_SF(t *testing.T) {
 	defer file.Close()
 
 	t.Cleanup(func() {
-		cleanupLocalConfig(t)
+		testutils.CleanupLocalConfig(t)
 		os.Remove(sampletxt)
 	})
 
 	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	pattern := `(?m) *.*Modified[\s\S]*started new process`
 	re := regexp.MustCompile(pattern)
@@ -476,7 +416,7 @@ func Test_LCwIgnore_Mod_SF(t *testing.T) {
 		"args":       "",
 	}
 	MODIFY_FILEPATH = "./testdata/sample.txt"
-	createLocalConfig(t, data)
+	testutils.CreateLocalConfig(t, data)
 	dirpath := filepath.Dir(FILEPATH)
 	sampletxt := filepath.Join(dirpath, "sample.txt")
 	file, err := os.Create(sampletxt)
@@ -486,13 +426,13 @@ func Test_LCwIgnore_Mod_SF(t *testing.T) {
 	defer file.Close()
 
 	t.Cleanup(func() {
-		cleanupLocalConfig(t)
+		testutils.CleanupLocalConfig(t)
 		os.Remove(sampletxt)
 	})
 
 	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	pattern := `(?m) *.*Modified[\s\S]*started new process`
 	re := regexp.MustCompile(pattern)
@@ -510,7 +450,7 @@ func Test_LCwIgnoreDir_Mod_SF(t *testing.T) {
 		"args":       "",
 	}
 	MODIFY_FILEPATH = "./testdata/sampledir/sample.txt"
-	createLocalConfig(t, data)
+	testutils.CreateLocalConfig(t, data)
 	dirpath := filepath.Dir(MODIFY_FILEPATH)
 	err := os.Mkdir(dirpath, 0777)
 	if err != nil {
@@ -524,13 +464,13 @@ func Test_LCwIgnoreDir_Mod_SF(t *testing.T) {
 	defer file.Close()
 
 	t.Cleanup(func() {
-		cleanupLocalConfig(t)
+		testutils.CleanupLocalConfig(t)
 		os.RemoveAll(dirpath)
 	})
 
 	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	pattern := `(?m) *.*Modified[\s\S]*started new process`
 	re := regexp.MustCompile(pattern)
@@ -542,7 +482,7 @@ func Test_LCwIgnoreDir_Mod_SF(t *testing.T) {
 func Test_Empty_FArg(t *testing.T) {
 	output, err := runCommand(t, "-f")
 	if err != nil {
-		t.Errorf("error executing command %v", err)
+		t.Fatalf("error executing command %v", err)
 	}
 	expected := "parse error"
 	if !strings.Contains(output, expected) {
@@ -553,7 +493,7 @@ func Test_Empty_FArg(t *testing.T) {
 func Test_Empty_DArg(t *testing.T) {
 	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH, "-d")
 	if err != nil {
-		t.Errorf("error executing command: %v", err)
+		t.Fatalf("error executing command: %v", err)
 	}
 	expected := "empty values for -d"
 	if !strings.Contains(output, expected) {
@@ -564,7 +504,7 @@ func Test_Empty_DArg(t *testing.T) {
 func Test_Empty_AArg(t *testing.T) {
 	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH, "-a")
 	if err != nil {
-		t.Errorf("error executing command: %v", err)
+		t.Fatalf("error executing command: %v", err)
 	}
 	expected := "empty values for -a"
 	if !strings.Contains(output, expected) {
@@ -575,7 +515,7 @@ func Test_Empty_AArg(t *testing.T) {
 func Test_Empty_EArg(t *testing.T) {
 	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH, "-e")
 	if err != nil {
-		t.Errorf("error executing command: %v", err)
+		t.Fatalf("error executing command: %v", err)
 	}
 	expected := "empty values for -e"
 	if !strings.Contains(output, expected) {
@@ -586,7 +526,7 @@ func Test_Empty_EArg(t *testing.T) {
 func Test_Reordered_Flags(t *testing.T) {
 	output, err := runInteractiveCommand(t, 2, true, false, false, "-a", "args", "-d", "1000", "-f", FILEPATH)
 	if err != nil {
-		t.Errorf("error executing command: %v", err)
+		t.Fatalf("error executing command: %v", err)
 	}
 	expected := "started new process"
 	if !strings.Contains(output, expected) {
