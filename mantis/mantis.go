@@ -39,12 +39,24 @@ func GetGlobalArgs() map[string][]string {
 	return globalargs
 }
 
+func SetGlobalArgs(gargs map[string][]string) {
+	globalargs = gargs
+}
+
 func GetMantisConfig() MantisConfig {
 	return mantis_config
 }
 
+func SetMantisConfig(mc MantisConfig) {
+	mantis_config = mc
+}
+
 func GetConfigFile() string {
 	return config_file
+}
+
+func SetConfigFile(cf string) {
+	config_file = cf
 }
 
 func GetMonitorList() map[string][]int {
@@ -53,6 +65,22 @@ func GetMonitorList() map[string][]int {
 
 func GetWDirectory() string {
 	return wdirectory
+}
+
+func SetWDirectory(wd string) {
+	wdirectory = wd
+}
+
+func GetGlobalDelay() int {
+	return globaldelay
+}
+
+func GetCProcess() *os.Process {
+	return cprocess
+}
+
+func SetCProcess(cp *os.Process) {
+	cprocess = cp
 }
 
 func ExecutionDriver() error {

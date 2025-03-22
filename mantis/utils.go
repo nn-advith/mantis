@@ -5,6 +5,7 @@ package mantis
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -19,6 +20,15 @@ import (
 
 func InitLogger() {
 	log.SetPrefix("mantis: ")
+}
+
+func SuppressLog(a int) {
+	if a == 1 {
+		log.SetOutput(io.Discard)
+	} else {
+		log.SetOutput(os.Stderr)
+
+	}
 }
 
 func LogProcessInfo(proc *os.Process, logval string) {
@@ -75,8 +85,9 @@ func ParseArgs(gargs map[string][]string, args []string) error {
 				i += 1
 				continue
 			}
+		} else {
+			gargs[currentkey] = append(gargs[currentkey], tmpargs[i])
 		}
-		gargs[currentkey] = append(gargs[currentkey], tmpargs[i])
 
 	}
 	if len(gargs["-f"]) == 0 {
