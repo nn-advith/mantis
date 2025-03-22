@@ -1,6 +1,6 @@
 //go:build functional
 
-package main_test
+package test
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nn-advith/mantis/testutils"
+	"github.com/nn-advith/mantis/test/testutils"
 )
 
 var FILEPATH string = "./testdata/sample.go"

@@ -1,6 +1,6 @@
-//go:build unit && linux
+//go:build linux && unit
 
-package main_test
+package test
 
 import (
 	"path/filepath"
@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/nn-advith/mantis/mantis"
-	"github.com/nn-advith/mantis/testutils"
+	"github.com/nn-advith/mantis/test/testutils"
 )
 
 func TestGetGlobalConfigPath(t *testing.T) {
