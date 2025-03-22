@@ -1,6 +1,6 @@
 //go:build unit
 
-package main_test
+package test
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/nn-advith/mantis/mantis"
-	"github.com/nn-advith/mantis/testutils"
+	"github.com/nn-advith/mantis/test/testutils"
 )
 
 // simulating global variables

@@ -35,7 +35,7 @@ func CleanupLocalConfig(t *testing.T) {
 func ModifyTestFile(t *testing.T, file string, content string) {
 	t.Helper()
 	// newcomment := "//comment to simulate modification"
-	f, err := os.OpenFile(file, os.O_APPEND, 0777)
+	f, err := os.OpenFile(file, os.O_APPEND|os.O_WRONLY, 0777)
 	if err != nil {
 		t.Fatalf("unable to open file for modification: %v", err)
 	}
