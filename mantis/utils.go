@@ -247,7 +247,7 @@ func PreExec() error {
 	if err != nil {
 		log.Printf("parse error: %v", err)
 		Usage()
-		os.Exit(1)
+		os.Exit(0)
 	}
 	err = CleanFileArgs()
 	if err != nil {
