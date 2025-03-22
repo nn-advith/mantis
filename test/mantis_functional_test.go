@@ -221,6 +221,48 @@ func Test_NC_NoMod_SF(t *testing.T) {
 
 }
 
+func Test_NC_NoMod_Dir(t *testing.T) {
+	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", filepath.Dir(FILEPATH)+"/")
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	pattern := `(?m) started new process ([0-9]+)`
+
+	re := regexp.MustCompile(pattern)
+	match := re.FindStringSubmatch(output)
+	if len(match) > 1 {
+		pattern = fmt.Sprintf("(?m)%s> TEMP", match[1])
+		re = regexp.MustCompile(pattern)
+		if !re.MatchString(output) {
+			t.Errorf("Wrong output from file; expected \"%s> TEMP\" in output", match[1])
+		}
+	} else {
+		t.Errorf("Expected process start in format %v", pattern)
+	}
+
+}
+
+func Test_NC_NoMod_MF(t *testing.T) {
+	output, err := runInteractiveCommand(t, 1, true, false, false, "-f", filepath.Dir(FILEPATH)+"/sample.go", filepath.Dir(FILEPATH)+"/helper.go")
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	pattern := `(?m) started new process ([0-9]+)`
+
+	re := regexp.MustCompile(pattern)
+	match := re.FindStringSubmatch(output)
+	if len(match) > 1 {
+		pattern = fmt.Sprintf("(?m)%s> TEMP", match[1])
+		re = regexp.MustCompile(pattern)
+		if !re.MatchString(output) {
+			t.Errorf("Wrong output from file; expected \"%s> TEMP\" in output", match[1])
+		}
+	} else {
+		t.Errorf("Expected process start in format %v", pattern)
+	}
+
+}
+
 func Test_NC_Delay(t *testing.T) {
 	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH, "-d", "1000")
 	if err != nil {
@@ -459,48 +501,95 @@ func Test_LCwIgnore_Mod_SF(t *testing.T) {
 	}
 }
 
-// func Test_LCwIgnoreDir_Mod_SF(t *testing.T) {
-// 	data := map[string]string{
-// 		"extensions": ".go",
-// 		"ignore":     "sampledir/",
-// 		"delay":      "",
-// 		"env":        "",
-// 		"args":       "",
-// 	}
-// 	MODIFY_FILEPATH = "./testdata/sampledir/sample.txt"
-// 	createLocalConfig(t, data)
-// 	dirpath := filepath.Dir(FILEPATH)
-// 	sampletxt := filepath.Join(dirpath, "sample.txt")
-// 	file, err := os.Create(sampletxt)
-// 	if err != nil {
-// 		t.Fatalf("unable to create sample file")
-// 	}
-// 	defer file.Close()
+func Test_LCwIgnoreDir_Mod_SF(t *testing.T) {
+	data := map[string]string{
+		"extensions": ".go",
+		"ignore":     "sampledir/",
+		"delay":      "",
+		"env":        "",
+		"args":       "",
+	}
+	MODIFY_FILEPATH = "./testdata/sampledir/sample.txt"
+	createLocalConfig(t, data)
+	dirpath := filepath.Dir(MODIFY_FILEPATH)
+	err := os.Mkdir(dirpath, 0777)
+	if err != nil {
+		t.Fatalf("unable to create sample dir")
+	}
+	sampletxt := filepath.Join(dirpath, "sample.txt")
+	file, err := os.Create(sampletxt)
+	if err != nil {
+		t.Fatalf("unable to create sample file")
+	}
+	defer file.Close()
 
-// 	t.Cleanup(func() {
-// 		cleanupLocalConfig(t)
-// 		os.Remove(sampletxt)
-// 	})
+	t.Cleanup(func() {
+		cleanupLocalConfig(t)
+		os.RemoveAll(dirpath)
+	})
 
-// 	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
-// 	if err != nil {
-// 		t.Errorf("error executing command %v", err)
-// 	}
-// 	pattern := `(?m) *.*Modified[\s\S]*started new process`
-// 	re := regexp.MustCompile(pattern)
-// 	if re.MatchString(output) {
-// 		t.Errorf("modification detected, expected modification to be ignored")
-// 	}
-// }
+	output, err := runInteractiveCommand(t, 1, true, false, true, "-f", FILEPATH)
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	pattern := `(?m) *.*Modified[\s\S]*started new process`
+	re := regexp.MustCompile(pattern)
+	if re.MatchString(output) {
+		t.Errorf("modification detected, expected modification to be ignored")
+	}
+}
 
-//##########################
+func Test_Empty_FArg(t *testing.T) {
+	output, err := runCommand(t, "-f")
+	if err != nil {
+		t.Errorf("error executing command %v", err)
+	}
+	expected := "parse error"
+	if !strings.Contains(output, expected) {
+		t.Errorf("expected parse error; got otherwise")
+	}
+}
 
-// tests to be added; check if logic can be reused
-// negative tests
+func Test_Empty_DArg(t *testing.T) {
+	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH, "-d")
+	if err != nil {
+		t.Errorf("error executing command: %v", err)
+	}
+	expected := "empty values for -d"
+	if !strings.Contains(output, expected) {
+		t.Errorf("expected normal execution ignoring -d flag")
+	}
+}
 
-// modify with syntax errors;
-// reordered flags
-// empty -f flag
-// empty -a,-e, -d flag
-// ignore dir
-// multiple -f args -> should start proper
+func Test_Empty_AArg(t *testing.T) {
+	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH, "-a")
+	if err != nil {
+		t.Errorf("error executing command: %v", err)
+	}
+	expected := "empty values for -a"
+	if !strings.Contains(output, expected) {
+		t.Errorf("expected normal execution ignoring -a flag")
+	}
+}
+
+func Test_Empty_EArg(t *testing.T) {
+	output, err := runInteractiveCommand(t, 2, true, false, false, "-f", FILEPATH, "-e")
+	if err != nil {
+		t.Errorf("error executing command: %v", err)
+	}
+	expected := "empty values for -e"
+	if !strings.Contains(output, expected) {
+		t.Errorf("expected normal execution ignoring -e flag")
+	}
+}
+
+func Test_Reordered_Flags(t *testing.T) {
+	output, err := runInteractiveCommand(t, 2, true, false, false, "-a", "args", "-d", "1000", "-f", FILEPATH)
+	if err != nil {
+		t.Errorf("error executing command: %v", err)
+	}
+	expected := "started new process"
+	if !strings.Contains(output, expected) {
+		t.Errorf("processes failed to start; expected normal execution")
+	}
+}
