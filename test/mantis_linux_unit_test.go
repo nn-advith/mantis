@@ -1,6 +1,6 @@
-//go:build linux && unit
+//go:build linux
 
-package test
+package main_test
 
 import (
 	"path/filepath"
