@@ -40,7 +40,7 @@ func LogProcessInfo(proc *os.Process, logval string) {
 }
 
 func Usage() {
-	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory>(mandatory) -a <args> -e <key=value> -d <milliseconds>\nmantis -v for version\nmantis -h for help")
+	fmt.Printf("\nUsage:\n\nmantis -f <files>/<directory>(mandatory) -a <args> -e <key=value> -d <milliseconds>\nmantis -v for version\nmantis -h for help\n\n")
 }
 
 func RuntimeCommandsLegend() {
