@@ -1,8 +1,6 @@
-//go:build windows && unit
+//go:build windows
 
-// Tests for mantis.
-
-package test
+package main_test
 
 import (
 	"path/filepath"

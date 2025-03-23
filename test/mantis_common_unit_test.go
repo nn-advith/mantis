@@ -1,6 +1,4 @@
-//go:build unit
-
-package test
+package main_test
 
 import (
 	"bytes"

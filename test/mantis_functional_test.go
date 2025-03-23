@@ -1,6 +1,4 @@
-//go:build functional
-
-package test
+package main_test
 
 import (
 	"bytes"
