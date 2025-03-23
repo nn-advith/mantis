@@ -172,6 +172,7 @@ Post installation, if you are unable to execute the mantis command, ensure that 
 
 Linux:
 `export GOBIN=$HOME/go/bin; export PATH=$PATH:$GOBIN`
+
 Windows:
 `Start > Edit Environment Variables for your Account > Environment Variables > Path > Edit > New  > Paste you GOBIN(typically C:\Users\<user>\go\bin)`
 
