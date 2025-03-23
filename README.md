@@ -135,6 +135,26 @@ go test -v mantis_functional_test.go
 go test -v mantis_functional_test.go -run TestHelpArgs
 ```
 
+#### Uninstall Mantis
+
+##### Windows
+
+Open a command prompt window
+
+```
+del "%USERPROFILE%\go\bin\mantis.exe
+rmdir /s "%APPDATA%\mantis"
+```
+
+##### Linux
+
+In your terminal
+
+```
+rm -f $HOME/go/bin/mantis
+rm -rf $HOME/.config/mantis
+```
+
 #### Troubleshooting
 
 ##### Mantis command not found
@@ -145,6 +165,10 @@ Linux:
 `export GOBIN=$HOME/go/bin; export PATH=$PATH:$GOBIN`
 Windows:
 `Start > Edit Environment Variables for your Account > Environment Variables > Path > Edit > New  > Paste you GOBIN(typically C:\Users\<user>\go\bin)`
+
+## Keywords
+
+`golang` `autoreload` `cli` `devtool` `monitor`
 
 [license-shield]: https://img.shields.io/badge/LICENSE-MIT-green?style=flat&labelColor=%232a2a2a&color=%2365ff8a
 [license-url]: https://github.com/nn-advith/mantis/blob/main/LICENSE
