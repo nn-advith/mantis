@@ -4,7 +4,7 @@
 
 #### About
 
-A simple tool that helps with golang development by restarting your application when modifications are detected. Inspired from [Nodemon](https://www.npmjs.com/package/nodemon)
+A simple tool that helps with golang development by restarting your application when modifications are detected. Inspired from [Nodemon](https://www.npmjs.com/package/nodemon).
 
 #### Installation
 
@@ -44,6 +44,20 @@ mantis -v   -   version info
        -a   -   arguments to be passed to the application
        -e   -   environment variables to be passed to the application
 ```
+
+Example commands:
+
+```
+mantis -f somedir/ -d 1000 -a arg1 arg2 -e key=val k1=v1
+```
+
+Execute all `.go` files in `somedir/`with delay of `1000` milliseconds and feed `arg1 arg2` as arguments to main function. `key=val k1=v1` will be set as environment vars.
+
+```
+mantis -f somedir/main.go -a arg1 arg2
+```
+
+Execute `somedir/main.go` and pass `arg1 arg2` as args.
 
 #### Config files
 
@@ -94,6 +108,43 @@ In the directory of the program that you need to monitor, create a config file `
 ```
 
 Now you can execute `mantis -f .` in the program directory and the config file will be used to read all the flags. Note that adding any other flag in the cli invocation will override it's corresponding value form the config. For instance, `mantis -f . -d 1000` will cause a 1 second delay.
+
+#### Tests
+
+Test execution steps for functional and unit tests.
+
+1. Clone the repo using
+
+```
+git clone github.com/nn-advith/mantis
+```
+
+2. Build the binary. This will create a binary, which needs to be moved into the `test/` directory
+
+```
+go build -o mantis-bin
+mv mantis-bin test/mantis
+cd test
+```
+
+3. Execute the tests. The following command will execute all tests (unit and functional). For more controlled testing, pass the file name and/or test function name
+
+```
+go test -v
+go test -v mantis_functional_test.go
+go test -v mantis_functional_test.go -run TestHelpArgs
+```
+
+#### Troubleshooting
+
+##### Mantis command not found
+
+Post installation, if you are unable to execute the mantis command, ensure that the GOBIN directory is added to path
+
+Linux:
+`export GOBIN=$HOME/go/bin; export PATH=$PATH:$GOBIN`
+Windows:
+`Start > Edit Environment Variables for your Account > Environment Variables > Path > Edit > New  > Paste you GOBIN(typically C:\Users\<user>\go\bin)`
 
 [license-shield]: https://img.shields.io/badge/LICENSE-MIT-green?style=flat&labelColor=%232a2a2a&color=%2365ff8a
 [license-url]: https://github.com/nn-advith/mantis/blob/main/LICENSE
