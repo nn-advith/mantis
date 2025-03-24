@@ -59,6 +59,15 @@ mantis -f somedir/main.go -a arg1 arg2
 
 Execute `somedir/main.go` and pass `arg1 arg2` as args.
 
+##### Runtime Inputs
+
+Send the following inputs to Mantis during runtime to controll the operation of Mantis.
+
+```
+r   -   Restart processes
+q   -   Terminate processes and exit
+```
+
 #### Config files
 
 Mantis supports the usage of config files to simplify command execution. There are two types; global config and local config. A global config file is created on your system, which contains a minimal config entry. Users can create a local config file in the directory of your program to save the flags for simpler command execution.
