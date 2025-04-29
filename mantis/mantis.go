@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -187,21 +189,38 @@ func CheckIfModified(channel chan Event) {
 }
 
 func ListenForInput(inputChannel chan int) {
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		text, _ := reader.ReadString('\n')
-		text = strings.TrimSpace(text)
-		switch text {
-		case "q":
-			// quit
-			inputChannel <- 0
-		case "r":
-			// restart
-			inputChannel <- 1
-		default:
-			// default
-			inputChannel <- -1
-		}
+	sChannel := make(chan os.Signal, 1)
+	signal.Notify(sChannel, syscall.SIGINT, syscall.SIGTERM)
 
-	}
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			text, _ := reader.ReadString('\n')
+			text = strings.TrimSpace(text)
+			switch text {
+			case "q":
+				// quit
+				inputChannel <- 0
+			case "r":
+				// restart
+				inputChannel <- 1
+			default:
+				// default
+				inputChannel <- -1
+			}
+		}
+	}()
+
+	go func() {
+		for sig := range sChannel {
+			switch sig {
+			case syscall.SIGINT:
+				//interrupt
+				inputChannel <- 0
+			case syscall.SIGTERM:
+				//terminate
+				inputChannel <- 0
+			}
+		}
+	}()
 }
