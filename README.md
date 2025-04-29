@@ -12,10 +12,10 @@ A simple tool that helps with golang development by restarting your application 
 go install github.com/nn-advith/mantis@latest
 ```
 
-For specific version (eg: v1.0.0)
+For specific version (eg: v1.1.0)
 
 ```
-go install github.com/nn-advith/mantis@v1.0.0
+go install github.com/nn-advith/mantis@v1.1.0
 ```
 
 Mantis will be installed on your system.
@@ -182,6 +182,4 @@ Windows:
 
 [license-shield]: https://img.shields.io/badge/LICENSE-MIT-green?style=flat&labelColor=%232a2a2a&color=%2365ff8a
 [license-url]: https://github.com/nn-advith/mantis/blob/main/LICENSE
-[windows-installer-url]: https://github.com/nn-advith/nyx/releases/download/v1.0.0/Nyx-Setup-1.0.0.exe
-[windows-installer-icon]: https://img.shields.io/badge/windows-installer-blue?style=for-the-badge
-[version-tag]: https://img.shields.io/badge/v-1.0.0-green?style=flat&labelColor=%232a2a2a&color=%2365ff8a
+[version-tag]: https://img.shields.io/badge/v-1.1.0-green?style=flat&labelColor=%232a2a2a&color=%2365ff8a
