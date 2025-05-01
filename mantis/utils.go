@@ -48,7 +48,7 @@ func RuntimeCommandsLegend() {
 }
 
 func returnVersion() {
-	fmt.Println("mantis v1.1.0")
+	fmt.Println("mantis v1.1.1")
 }
 
 func ParseArgs(gargs map[string][]string, args []string) error {
